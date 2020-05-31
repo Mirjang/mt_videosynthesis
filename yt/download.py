@@ -13,41 +13,28 @@ api = YouTubeDataAPI("AIzaSyC59eKDKiR7wq9Lu2gOGWfk0_Gupn40a8s")
 
 resolutions = ['1080p', '720p', '480p', '360p', '240p', '144p']
 
-def download(url, path, filename = None, retries = 3): 
 
-    for i in range(retries):
-        try: 
-            dl = Downloader(url)
-
-            #todo: format
-            stream = dl.streams.first()
-
-            stream.download(path, filename = filename)
-            return True
-
-        except Exception as e:
-            print(f"Exception {e} while downloading: {url} ...retrying {i+1}/{retries}")
-        
-    return False
-
-def download_video(video, path, retries = 3, min_res="360p", max_res="720p"): 
+def download_video(video, path, retries = 5, min_res="240p", max_res="720p", print_exception_trace=True): 
     url = "youtube.com/watch?v=" + video['video_id']
     filename = video['video_id']
 
     for i in range(retries):
-        try: 
-            dl = Downloader(url)
+       try: 
+        dl = Downloader(url)
+        streams = dl.streams.filter(only_video=True)
+        for res in resolutions[resolutions.index(max_res) : resolutions.index(min_res)]: 
+            res_streams = streams.filter(resolution = res)
+            #print(res_streams)
+            if len(res_streams)>0: #at this point we could pick our favourite codec or w/e
+                stream = res_streams[0]
+                break 
+        if not stream: 
+            return None
+        stream.download(path, filename = filename)
+        return [video['video_id'], filename + "." + stream.mime_type.split("/")[1], stream.resolution, stream.fps]
 
-            for res in resolutions[resolutions.index(max_res) : resolutions.index(min_res)]: 
-                stream = dl.streams.get_by_resolution(res)
-                if stream: 
-                    break 
-
-            stream.download(path, filename = filename)
-            return [video['video_id'], filename + "." + stream.mime_type.split("/")[1], stream.resolution, stream.fps]
-
-        except Exception as e:
-            print(f"Exception {e} while downloading: {url} ...retrying {i+1}/{retries}")
+       except Exception as e:
+           print(f"Exception {e.with_traceback() if print_exception_trace else e} while downloading: {url} ...retrying {i+1}/{retries}")
         
     return None
 
@@ -63,7 +50,7 @@ def move_files(source, dest, override = True):
                 continue
         shutil.move(os.path.join(source,f), dest)        
 
-def download_by_key(keyword, max_results= 1e6, path ="./tmp", verbose = False, retries = 3, max_threads = 8, override_existing = False,min_res="360p", max_res="720p"): 
+def download_by_keyword(keyword, max_results= 1e3, path ="./tmp", verbose = False, retries = 5, max_workers = 8, override_existing = False,min_res="240p", max_res="720p"): 
     san_key = keyword.replace(" ", "_")
     path = os.path.join(path, san_key)
     
@@ -82,7 +69,7 @@ def download_by_key(keyword, max_results= 1e6, path ="./tmp", verbose = False, r
     dl_path = tempfile.TemporaryDirectory(dir  =  "./") 
     existing = 0
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_threads) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = []
         for result in search: 
             
@@ -119,3 +106,21 @@ def download_by_key(keyword, max_results= 1e6, path ="./tmp", verbose = False, r
 
 
 
+
+def download(url, path, filename = None, retries = 3): 
+
+    for i in range(retries):
+        try: 
+            dl = Downloader(url)
+
+            #todo: format
+            stream = dl.streams.first()
+
+            stream.download(path, filename = filename)
+            return True
+
+        except Exception as e:
+            
+            print(f"Exception {e} while downloading: {url} ...retrying {i+1}/{retries}")
+        
+    return False
