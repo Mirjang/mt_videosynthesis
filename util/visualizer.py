@@ -5,7 +5,8 @@ import ntpath
 import time
 from . import util
 from . import html
-from scipy.misc import imresize
+from skimage.transform import resize
+
 #from PIL import Image
 
 
@@ -13,6 +14,18 @@ if sys.version_info[0] == 2:
     VisdomExceptionBase = Exception
 else:
     VisdomExceptionBase = ConnectionError
+
+def imresize(im, shape, interp = 'bicubic'): 
+    return resize(im, shape)
+
+def tensor2vid(video): 
+    video = video*256
+    video = video.permute(0,1,3,4,2)
+
+
+
+
+    return video
 
 
 # save image to the disk
@@ -23,29 +36,42 @@ def save_images(webpage, visuals, image_path, aspect_ratio=1.0, width=256):
 
     webpage.add_header(name)
     ims, txts, links = [], [], []
+    vids, vidtxts, vidlinks = [], [], []
+
 
     for label, im_data in visuals.items():
-        im = util.tensor2im(im_data)
         image_name = '%s_%s.png' % (name, label)
         save_path = os.path.join(image_dir, image_name)
-        h, w, _ = im.shape
-        
-        height = int(width * h / float(w))
-        im = imresize(im, (height,width), interp='bicubic')
+        if label.endswith("_video"):
+            vid = tensor2vid(im_data)
 
-        #im = imresize(im, (height,widht), interp='bicubic')
-        #if aspect_ratio > 1.0:
-        #    im = imresize(im, (h, int(w * aspect_ratio)), interp='bicubic')
-        #if aspect_ratio < 1.0:
-        #    im = imresize(im, (int(h / aspect_ratio), w), interp='bicubic')
+            vidlinks.append(image_name)
+            vidtxts.append(label)
+            vids.append(vid)
+        else: 
 
-        util.save_image(im, save_path)
+            im = util.tensor2im(im_data)
 
-        ims.append(image_name)
-        txts.append(label)
-        links.append(image_name)
-    webpage.add_images(ims, txts, links, width=width)
+            h, w, _ = im.shape
+            
+            height = int(width * h / float(w))
+            im = imresize(im, (height,width), interp='bicubic')
 
+            #im = imresize(im, (height,widht), interp='bicubic')
+            #if aspect_ratio > 1.0:
+            #    im = imresize(im, (h, int(w * aspect_ratio)), interp='bicubic')
+            #if aspect_ratio < 1.0:
+            #    im = imresize(im, (int(h / aspect_ratio), w), interp='bicubic')
+
+            util.save_image(im, save_path)
+
+            ims.append(image_name)
+            txts.append(label)
+            links.append(image_name)
+    if len(ims)>0:
+        webpage.add_images(ims, txts, links, width=width)
+    if len(vids)>0:
+        pass
 
 class Visualizer():
     def __init__(self, opt):
@@ -95,19 +121,30 @@ class Visualizer():
                 label_html = ''
                 label_html_row = ''
                 images = []
+                videos = []
                 idx = 0
                 for label, image in visuals.items():
                     #
-                    image_numpy = util.tensor2im(image)
-                    image_numpy = imresize(image_numpy, (h, w), interp='bicubic')
-                    image_numpy = image_numpy.transpose([2, 0, 1])
+                    if label.endswith("_video"):
+                        if len(image.shape) is 5: 
+                            N,*_ = image.shape
+                            for v in range(N):
+
+                                videos.append(image[v].permute(0,2,3,1))
+                        else:
+                            videos.append(image.permute(0,2,3,1))
+                    else:
+                        image_numpy = util.tensor2im(image)
+                        image_numpy = imresize(image_numpy, (h, w), interp='bicubic')
+                        image_numpy = image_numpy.transpose([2, 0, 1])
+                        images.append(image_numpy)
+
                     label_html_row += '<td>%s</td>' % label
-                    images.append(image_numpy)
                     idx += 1
                     if idx % ncols == 0:
                         label_html += '<tr>%s</tr>' % label_html_row
                         label_html_row = ''
-                white_image = np.ones_like(image_numpy) * 255
+                white_image = np.ones((h,w,3)) * 255
                 while idx % ncols != 0:
                     images.append(white_image)
                     label_html_row += '<td></td>'
@@ -115,8 +152,13 @@ class Visualizer():
                 if label_html_row != '':
                     label_html += '<tr>%s</tr>' % label_html_row
                 # pane col = image row
+                
                 try:
-                    self.vis.images(images, nrow=ncols, win=self.display_id + 1, padding=2, opts=dict(title=title + ' images'))
+                    if len(images)>0:
+                        self.vis.images(images, nrow=ncols, win=self.display_id + 1, padding=2, opts=dict(title=title + ' images'))
+                    if len(videos)>0: 
+                        for video in videos: 
+                            self.vis.video(video)
                     label_html = '<table>%s</table>' % label_html
                     self.vis.text(table_css + label_html, win=self.display_id + 2,
                                   opts=dict(title=title + ' labels'))
@@ -126,17 +168,34 @@ class Visualizer():
             else:
                 idx = 1
                 for label, image in visuals.items():
-                    image_numpy = util.tensor2im(image)
-                    self.vis.image(image_numpy.transpose([2, 0, 1]), opts=dict(title=label),
-                                   win=self.display_id + idx)
+                    if label.endswith("_video"):
+                        if len(image.shape) is 5: 
+                            N,*_ = image.shape
+                            for v in range(N):
+                                self.vis.video(image[v].permute(0,2,3,1))
+                        else:
+                            self.vis.video(image.permute(0,2,3,1))
+                        
+                    else:
+                        image_numpy = util.tensor2im(image)
+                        self.vis.image(image_numpy.transpose([2, 0, 1]), opts=dict(title=label),
+                                    win=self.display_id + idx)
                     idx += 1
 
         if self.use_html and (save_result or not self.saved):  # save images to a html file
             self.saved = True
             for label, image in visuals.items():
-                image_numpy = util.tensor2im(image)
-                img_path = os.path.join(self.img_dir, 'epoch%.3d_%s.png' % (epoch, label))
-                util.save_image(image_numpy, img_path)
+                if label.endswith("_video"):
+                    if len(image.shape) is 5: 
+                        N,*_ = image.shape
+                        for v in range(N):
+                            pass
+                    else:
+                        pass
+                else:
+                    image_numpy = util.tensor2im(image)
+                    img_path = os.path.join(self.img_dir, 'epoch%.3d_%s.png' % (epoch, label))
+                    util.save_image(image_numpy, img_path)
             # update website
             webpage = html.HTML(self.web_dir, 'Experiment name = %s' % self.name, reflesh=1)
             for n in range(epoch, 0, -1):
@@ -144,11 +203,19 @@ class Visualizer():
                 ims, txts, links = [], [], []
 
                 for label, image_numpy in visuals.items():
-                    image_numpy = util.tensor2im(image)
-                    img_path = 'epoch%.3d_%s.png' % (n, label)
-                    ims.append(img_path)
-                    txts.append(label)
-                    links.append(img_path)
+                    if label.endswith("_video"):
+                        if len(image.shape) is 5: 
+                            N,*_ = image.shape
+                            for v in range(N):
+                                pass
+                        else:
+                            pass
+                    else:
+                        image_numpy = util.tensor2im(image)
+                        img_path = 'epoch%.3d_%s.png' % (n, label)
+                        ims.append(img_path)
+                        txts.append(label)
+                        links.append(img_path)
                 webpage.add_images(ims, txts, links, width=self.win_size)
             webpage.save()
 
@@ -157,7 +224,13 @@ class Visualizer():
         if not hasattr(self, 'plot_data'):
             self.plot_data = {'X': [], 'Y': [], 'legend': list(losses.keys())}
         self.plot_data['X'].append(epoch + counter_ratio)
-        self.plot_data['Y'].append([losses[k] for k in self.plot_data['legend']])
+        print(losses)
+
+        if len(self.plot_data['legend'])>1:
+            self.plot_data['Y'].append([losses[k] for k in self.plot_data['legend']])
+        else: 
+            self.plot_data['Y'].append(losses[k] for k in self.plot_data['legend'])
+
         try:
             self.vis.line(
                 X=np.stack([np.array(self.plot_data['X'])] * len(self.plot_data['legend']), 1),

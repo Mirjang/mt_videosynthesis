@@ -26,56 +26,20 @@ def gram_matrix(y):
     gram = features.bmm(features_t) / (ch * h * w)
     return gram
 
+class ConvLiftNet(nn.Module): 
+    def __init__(self, nframes, image_nc=3):
+        super(ConvLiftNet, self).__init__()
+        self.nframes = nframes
+        self.image_nc = image_nc
+        model = [nn.Conv2d(image_nc, image_nc*nframes, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="mirror")]
+        model += [nn.Sigmoid()]
+        self.model = nn.Sequential(*model)
 
-class UnetRenderer(nn.Module):
-    def __init__(self, renderer, input_nc, output_nc, ngf=64, norm_layer=nn.BatchNorm2d, use_dropout=False):
-        super(UnetRenderer, self).__init__()
-        # construct unet structure
-        if renderer=='UNET_8_level':
-            num_downs = 8
-            unet_block = UnetSkipConnectionBlock(ngf * 8, ngf * 8, input_nc=None, submodule=None, norm_layer=norm_layer, innermost=True)
-            for i in range(num_downs - 5):
-                unet_block = UnetSkipConnectionBlock(ngf * 8, ngf * 8, input_nc=None, submodule=unet_block, norm_layer=norm_layer, use_dropout=use_dropout)
-            unet_block = UnetSkipConnectionBlock(ngf * 4, ngf * 8, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
-            unet_block = UnetSkipConnectionBlock(ngf * 2, ngf * 4, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
-            unet_block = UnetSkipConnectionBlock(ngf, ngf * 2, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
-            unet_block = UnetSkipConnectionBlock(output_nc, ngf, input_nc=input_nc, submodule=unet_block, outermost=True, norm_layer=norm_layer)
-        elif renderer=='UNET_6_level':
-            num_downs = 6
-            unet_block = UnetSkipConnectionBlock(ngf * 8, ngf * 8, input_nc=None, submodule=None, norm_layer=norm_layer, innermost=True)
-            for i in range(num_downs - 5):
-                unet_block = UnetSkipConnectionBlock(ngf * 8, ngf * 8, input_nc=None, submodule=unet_block, norm_layer=norm_layer, use_dropout=use_dropout)
-            unet_block = UnetSkipConnectionBlock(ngf * 4, ngf * 8, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
-            unet_block = UnetSkipConnectionBlock(ngf * 2, ngf * 4, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
-            unet_block = UnetSkipConnectionBlock(ngf, ngf * 2, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
-            unet_block = UnetSkipConnectionBlock(output_nc, ngf, input_nc=input_nc, submodule=unet_block, outermost=True, norm_layer=norm_layer)
-        elif renderer=='UNET_5_level':
-            num_downs = 5
-            unet_block = UnetSkipConnectionBlock(ngf * 8, ngf * 8, input_nc=None, submodule=None, norm_layer=norm_layer, innermost=True)
-            for i in range(num_downs - 5):
-                unet_block = UnetSkipConnectionBlock(ngf * 8, ngf * 8, input_nc=None, submodule=unet_block, norm_layer=norm_layer, use_dropout=use_dropout)
-            unet_block = UnetSkipConnectionBlock(ngf * 4, ngf * 8, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
-            unet_block = UnetSkipConnectionBlock(ngf * 2, ngf * 4, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
-            unet_block = UnetSkipConnectionBlock(ngf, ngf * 2, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
-            unet_block = UnetSkipConnectionBlock(output_nc, ngf, input_nc=input_nc, submodule=unet_block, outermost=True, norm_layer=norm_layer)
-        else: #if renderer=='UNET_3_level':
-            unet_block = UnetSkipConnectionBlock(ngf * 2, ngf * 8, input_nc=None, submodule=None, norm_layer=norm_layer, innermost=True)
-            unet_block = UnetSkipConnectionBlock(ngf,     ngf * 2, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
-            unet_block = UnetSkipConnectionBlock(output_nc, ngf, input_nc=input_nc, submodule=unet_block, outermost=True, norm_layer=norm_layer)
-
-        self.model = unet_block
-
-    def forward(self, feature_map, expressions):
-        # TODO incorporat expressions
-        return self.model(feature_map)
-
-def define_Renderer(renderer, n_feature,ngf, norm='batch', use_dropout=False, init_type='normal', init_gain=0.02, gpu_ids=[]):
-    net = None
-    norm_layer = networks.get_norm_layer(norm_type=norm)
-    N_OUT = 3
-    #net = UnetRenderer(N_FEATURE, N_OUT, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
-    net = UnetRenderer(renderer, n_feature, N_OUT, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
-    return networks.init_net(net, init_type, init_gain, gpu_ids)
+    def forward(self, x): 
+        N,C,H,W = x.shape
+        y = self.model(x)
+        y = torch.reshape(y, (N,self.nframes,C,H,W))
+        return y
 
 
 
@@ -106,17 +70,21 @@ class SimpleVideoModel(BaseModel):
         self.loss_names = ['L1']
 
         # specify the images you want to save/display. The program will call base_model.get_current_visuals
-        self.visual_names = []
-        self.video_names = ["predicted_video"]
+        self.visual_names = ["predicted_video", "target_video"]
 
         # specify the models you want to save to the disk. The program will call base_model.save_networks and base_model.load_networks
-
+        if self.isTrain:
+            self.model_names = ['netG']
+        else:  # during test time, only load Gs
+            self.model_names = ['netG']
 
         # load/define networks
         #self.netG = define_Renderer(opt.rendererType, opt.tex_features + 3, opt.ngf, opt.norm, not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
         #self.netG = define_Renderer(opt.rendererType, opt.tex_features+2, opt.ngf, opt.norm, not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)#<<<<<<<<<<<<<<<<
 
-       
+        netG = ConvLiftNet(30,3)
+        self.netG = networks.init_net(netG, opt.init_type, opt.init_gain, self.gpu_ids)
+
         if self.isTrain:
             # define loss functions
             self.criterionL1 = torch.nn.L1Loss()
@@ -127,21 +95,21 @@ class SimpleVideoModel(BaseModel):
             self.optimizers = []
             #self.optimizer = torch.optim.SGD(self.texture.parameters(), opt.lr)
             self.optimizer = torch.optim.Adam(self.netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
-            self.optimizers.append(self.optimizer_T)
+            self.optimizers.append(self.optimizer)
 
 
 
     def set_input(self, input):
-        self.target = input['VIDEO'].to(self.device)
+        self.target = input['VIDEO'].to(self.device).permute(0,1,4,2,3) / 256.0 #normalize to [0,1]
         self.input = self.target[:,0,...] #first frame
-
+        self.target_video = self.target[0, :150,...]
 
 
     def forward(self):
         video = self.netG(self.input)
         self.predicted_video = video
-
-        return video
+        video = video * 256
+        return video.permute(0,1,3,4,2)
 
 
     def backward_D(self):
@@ -209,9 +177,11 @@ class SimpleVideoModel(BaseModel):
         self.forward()
 
         self.optimizer.zero_grad()
-
+        _, T,_,_,_ = self.predicted_video.shape
         ## loss = L1(texture - target) 
-        self.loss_L1 = self.criterionL1(self.predicted_video, self.target)
+        target = self.target[:,:T,...]
+    
+        self.loss_L1 = self.criterionL1(self.predicted_video, target)
         self.loss_L1.backward()
         self.optimizer.step()
         # if self.trainRenderer:
@@ -224,9 +194,8 @@ class SimpleVideoModel(BaseModel):
         #     # update Generator
         #     self.set_requires_grad(self.netD, False)
         #     self.optimizer_G.zero_grad()
-        #     self.optimizer_T.zero_grad()
+
 
         #     self.backward_G(epoch_iter)
 
         #     self.optimizer_G.step()
-        #     self.optimizer_T.step()
