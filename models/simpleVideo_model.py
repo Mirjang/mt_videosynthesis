@@ -6,7 +6,7 @@ from . import networks
 import numpy as np
 import functools
 
-from .networks import VGG16, UnetSkipConnectionBlock
+from .networks import VGG16, UnetSkipConnectionBlock, ConvLSTMCell
 
 ################
 ###  HELPER  ###
@@ -31,16 +31,82 @@ class ConvLiftNet(nn.Module):
         super(ConvLiftNet, self).__init__()
         self.nframes = nframes
         self.image_nc = image_nc
-        model = [nn.Conv2d(image_nc, image_nc*nframes, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="mirror")]
-        model += [nn.Sigmoid()]
+        #model = [nn.Conv2d(image_nc, image_nc*nframes, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="mirror")]
+        model = [nn.Conv3d(1, nframes, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="mirror")]
+        model += [nn.LeakyReLU(0.2)]
+        model += [nn.Conv3d(nframes, nframes, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="mirror")]
+        model += [nn.LeakyReLU(0.2)]
+        model += [nn.Conv3d(nframes, nframes, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="mirror")]
+
+        model += [nn.Tanh()]
         self.model = nn.Sequential(*model)
 
     def forward(self, x): 
-        N,C,H,W = x.shape
-        y = self.model(x)
-        y = torch.reshape(y, (N,self.nframes,C,H,W))
-        return y
+        x = x * 2 - 1 #[0,1] -> [-1,1]
+        N,C,H,W = x.shape 
+        x = torch.unsqueeze(x, 1)#->(N,C,H,W)->(N,T=1,C,H,W)
+        x = self.model(x)
+        #x = torch.reshape(x, (N,self.nframes,C,H,W))
+        x = (x+1) / 2.0 #[-1,1] -> [0,1] for vis 
+        return x
 
+
+class FwdConvNet(nn.Module):
+    def __init__(self, nframes, image_nc=3):
+        super(FwdConvNet, self).__init__()
+        self.nframes = nframes
+        self.image_nc = image_nc
+        #model = [nn.Conv2d(image_nc, image_nc*nframes, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="mirror")]
+        self.model = ConvLSTMCell()
+        model = [nn.Conv2d(image_nc, 8, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="mirror")]
+        model += [nn.LeakyReLU(0.2)]
+        model += [nn.Conv2d(8, image_nc, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="mirror")]
+        model += [nn.Tanh()]
+        self.model = nn.Sequential(*model)
+        
+    def forward(self, x): 
+        x = x * 2 - 1 #[0,1] -> [-1,1]
+        N,C,H,W = x.shape 
+        out = torch.zeros((N,self.nframes,C,H,W), device = x.device)
+        out[:,0] = x
+        for i in range(1,self.nframes):
+
+            x = self.model(x)
+            out[:,i] = x
+        #x = torch.reshape(x, (N,self.nframes,C,H,W))
+        out = (out+1) / 2.0 #[-1,1] -> [0,1] for vis 
+        return out
+
+class LSTMGeneratorNet(nn.Module): 
+    def __init__(self, nframes, image_nc=3, hidden_dims = 1):
+        super(LSTMGeneratorNet, self).__init__()
+        self.nframes = nframes
+        self.image_nc = image_nc
+        self.hidden_dims = hidden_dims
+
+        
+
+
+        self.lstm = ConvLSTMCell((640,360),image_nc, hidden_dims, (3,3), True)
+        decoder = [nn.Conv2d(hidden_dims, image_nc, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="mirror")]
+        decoder += [nn.Tanh()]
+        self.decoder = nn.Sequential(*decoder)
+
+    def forward(self, x): 
+        x = x * 2 - 1 #[0,1] -> [-1,1]
+        N,C,H,W = x.shape 
+        out = torch.zeros((N,self.nframes,C,H,W), device = x.device)
+        out[:,0] = x
+
+        h = torch.zeros((N,self.hidden_dims,H,W)).to(x.device)
+        c = torch.zeros((N,self.hidden_dims,H,W)).to(x.device)
+
+        for i in range(1,self.nframes):
+            h, c = self.lstm(x, (h,c))
+            out[:,i] = self.decoder(h)
+        #x = torch.reshape(x, (N,self.nframes,C,H,W))
+        out = (out+1) / 2.0 #[-1,1] -> [0,1] for vis 
+        return out
 
 
 class SimpleVideoModel(BaseModel):
@@ -64,13 +130,16 @@ class SimpleVideoModel(BaseModel):
     def initialize(self, opt):
         BaseModel.initialize(self, opt)
         self.isTrain = opt.isTrain
-
+        self.num_display_frames = 4
 
         # specify the training losses you want to print out. The program will call base_model.get_current_losses
         self.loss_names = ['L1']
 
         # specify the images you want to save/display. The program will call base_model.get_current_visuals
         self.visual_names = ["predicted_video", "target_video"]
+
+        for i in range(self.num_display_frames): 
+            self.visual_names += [f"frame_{i}"]
 
         # specify the models you want to save to the disk. The program will call base_model.save_networks and base_model.load_networks
         if self.isTrain:
@@ -82,7 +151,7 @@ class SimpleVideoModel(BaseModel):
         #self.netG = define_Renderer(opt.rendererType, opt.tex_features + 3, opt.ngf, opt.norm, not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
         #self.netG = define_Renderer(opt.rendererType, opt.tex_features+2, opt.ngf, opt.norm, not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)#<<<<<<<<<<<<<<<<
 
-        netG = ConvLiftNet(30,3)
+        netG = LSTMGeneratorNet(10,3)
         self.netG = networks.init_net(netG, opt.init_type, opt.init_gain, self.gpu_ids)
 
         if self.isTrain:
@@ -100,14 +169,18 @@ class SimpleVideoModel(BaseModel):
 
 
     def set_input(self, input):
-        self.target = input['VIDEO'].to(self.device).permute(0,1,4,2,3) / 256.0 #normalize to [0,1]
-        self.input = self.target[:,0,...] #first frame
+        self.target = input['VIDEO'].to(self.device).permute(0,1,4,2,3) / 256.0 #normalize to [0,1] for vis and stuff 
+        self.input = self.target[:,0,...]#first frame
         self.target_video = self.target[0, :150,...]
 
 
     def forward(self):
+
         video = self.netG(self.input)
         self.predicted_video = video
+
+        for i in range(self.num_display_frames):
+            setattr(self,f"frame_{i}", self.predicted_video[:,i,...] )
         video = video * 256
         return video.permute(0,1,3,4,2)
 

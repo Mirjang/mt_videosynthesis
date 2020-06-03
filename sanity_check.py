@@ -12,6 +12,14 @@ import cv2
 if __name__ == '__main__':
     opt = TrainOptions().parse()
 
+
+    opt.max_dataset_size = 1
+    opt.batchsize = 1
+    opt.print_freq=1
+    opt.display_freq = 1
+    opt.update_html_freq =1
+    opt.lr = .004
+
     abort_file = "/mnt/raid/patrickradner/kill" + str(opt.gpu_ids[0]) if len(opt.gpu_ids)>0 else "cpu"
 
     if os.path.exists(abort_file): 
@@ -21,9 +29,7 @@ if __name__ == '__main__':
     data_loader = CreateDataLoader(opt)
     dataset = data_loader.load_data()
     dataset_size = len(data_loader)
-    opt.print_freq=5
-    opt.display_freq = 5
-    opt.update_html_freq =5
+
     #show some data using opencv, only works when display is available
     # for _,data in enumerate(dataset): 
     #     clip = data['VIDEO'][0] #first elem in batch

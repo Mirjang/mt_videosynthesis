@@ -6,8 +6,8 @@ import time
 from . import util
 from . import html
 from skimage.transform import resize
+from PIL import Image
 
-#from PIL import Image
 
 
 if sys.version_info[0] == 2:
@@ -16,15 +16,12 @@ else:
     VisdomExceptionBase = ConnectionError
 
 def imresize(im, shape, interp = 'bicubic'): 
-    return resize(im, shape)
+    #return np.array(Image.fromarray(np.uint8(im*256)).resize(shape))
+    return resize(im.astype(float), shape)
 
 def tensor2vid(video): 
     video = video*256
     video = video.permute(0,1,3,4,2)
-
-
-
-
     return video
 
 
@@ -109,7 +106,10 @@ class Visualizer():
             ncols = self.ncols
             if ncols > 0:
                 ncols = min(ncols, len(visuals))
-                h, w = next(iter(visuals.values())).shape[2:4]
+                h, w = next(iter(visuals.values())).shape[2:4] #if first visual is a video these values will be garbage
+                for label, image in visuals.items(): 
+                    if not label.endswith("_video"):
+                        h, w = image.shape[2:4]
                 height = int(width * h / float(w))
                 h = height
                 w = width
@@ -122,6 +122,7 @@ class Visualizer():
                 label_html_row = ''
                 images = []
                 videos = []
+                video_labels = []
                 idx = 0
                 for label, image in visuals.items():
                     #
@@ -131,12 +132,14 @@ class Visualizer():
                             for v in range(N):
 
                                 videos.append(image[v,:,[2,1,0],...].permute(0,2,3,1))
+                                video_labels.append(label)
                         else:
                             videos.append(image[:,[2,1,0],...].permute(0,2,3,1))
+                            video_labels.append(label)
                     else:
                         image_numpy = util.tensor2im(image)
-                        image_numpy = imresize(image_numpy, (h, w), interp='bicubic')
-                        image_numpy = image_numpy.transpose([2, 0, 1])
+                        image_numpy = imresize(image_numpy, (h, w), interp='bicubic').astype(np.uint8).transpose(2,0,1)
+
                         images.append(image_numpy)
 
                     label_html_row += '<td>%s</td>' % label
@@ -144,7 +147,7 @@ class Visualizer():
                     if idx % ncols == 0:
                         label_html += '<tr>%s</tr>' % label_html_row
                         label_html_row = ''
-                white_image = np.ones((h,w,3)) * 255
+                white_image = np.ones((3,h,w), dtype = np.uint8) * 255
                 while idx % ncols != 0:
                     images.append(white_image)
                     label_html_row += '<td></td>'
@@ -152,13 +155,14 @@ class Visualizer():
                 if label_html_row != '':
                     label_html += '<tr>%s</tr>' % label_html_row
                 # pane col = image row
-                
+    
                 try:
                     if len(images)>0:
-                        self.vis.images(images, nrow=ncols, win=self.display_id + 1, padding=2, opts=dict(title=title + ' images'))
+                        
+                        self.vis.images(images, nrow=ncols, win=self.display_id + 1, padding=1, opts=dict(title=title + ' images'))
                     if len(videos)>0: 
-                        for video in videos: 
-                            self.vis.video(video)
+                        for vi,(label,video) in enumerate(zip(video_labels,videos)): 
+                            self.vis.video(video,win=self.display_id+3+vi,opts=dict(title=label))
                     label_html = '<table>%s</table>' % label_html
                     self.vis.text(table_css + label_html, win=self.display_id + 2,
                                   opts=dict(title=title + ' labels'))
@@ -172,13 +176,13 @@ class Visualizer():
                         if len(image.shape) is 5: 
                             N,*_ = image.shape
                             for v in range(N):
-                                self.vis.video(image[v,:,[2,1,0],...].permute(0,2,3,1))
+                                self.vis.video(image[v,:,[2,1,0],...].permute(0,2,3,1),win=self.display_id + idx)
                         else:
-                            self.vis.video(image[:,[2,1,0],...].permute(0,2,3,1))
+                            self.vis.video(image[:,[2,1,0],...].permute(0,2,3,1),win=self.display_id + idx)
                         
                     else:
                         image_numpy = util.tensor2im(image)
-                        self.vis.image(image_numpy.transpose([2, 0, 1]), opts=dict(title=label),
+                        self.vis.image(image_numpy, opts=dict(title=label),
                                     win=self.display_id + idx)
                     idx += 1
 
@@ -251,7 +255,7 @@ class Visualizer():
     def print_current_losses(self, epoch, i, losses, t, t_data):
         message = '(epoch: %d, iters: %d, time: %.3f, data: %.3f) ' % (epoch, i, t, t_data)
         for k, v in losses.items():
-            message += '%s: %.3f ' % (k, v)
+            message += '%s: %.6f ' % (k, v)
 
         print(message)
         with open(self.log_name, "a") as log_file:
