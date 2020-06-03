@@ -130,9 +130,9 @@ class Visualizer():
                             N,*_ = image.shape
                             for v in range(N):
 
-                                videos.append(image[v].permute(0,2,3,1))
+                                videos.append(image[v,:,[2,1,0],...].permute(0,2,3,1))
                         else:
-                            videos.append(image.permute(0,2,3,1))
+                            videos.append(image[:,[2,1,0],...].permute(0,2,3,1))
                     else:
                         image_numpy = util.tensor2im(image)
                         image_numpy = imresize(image_numpy, (h, w), interp='bicubic')
@@ -172,9 +172,9 @@ class Visualizer():
                         if len(image.shape) is 5: 
                             N,*_ = image.shape
                             for v in range(N):
-                                self.vis.video(image[v].permute(0,2,3,1))
+                                self.vis.video(image[v,:,[2,1,0],...].permute(0,2,3,1))
                         else:
-                            self.vis.video(image.permute(0,2,3,1))
+                            self.vis.video(image[:,[2,1,0],...].permute(0,2,3,1))
                         
                     else:
                         image_numpy = util.tensor2im(image)
