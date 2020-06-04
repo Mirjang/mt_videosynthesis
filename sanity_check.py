@@ -17,7 +17,7 @@ if __name__ == '__main__':
     opt.batchsize = 1
     opt.print_freq=1
     opt.display_freq = 1
-    opt.update_html_freq =5
+    opt.update_html_freq =1
     opt.lr = .004
 
     abort_file = "/mnt/raid/patrickradner/kill" + str(opt.gpu_ids[0]) if len(opt.gpu_ids)>0 else "cpu"

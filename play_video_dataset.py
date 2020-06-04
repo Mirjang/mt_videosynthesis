@@ -1,11 +1,13 @@
 import cv2
 import os
 import sys
+import torch
 from options.train_options import TrainOptions
 from data import CreateDataLoader
 
 from data.video_dataset import VideoDataset
 from data.movingmnist_dataset import MovingMNISTDataset
+
 
 if __name__ == '__main__':
     opt = TrainOptions().parse()
@@ -26,6 +28,7 @@ if __name__ == '__main__':
         clip = data["VIDEO"][0]
         T,_,_,_ = clip.shape
         print(clip.shape)
+        print(torch.min(clip), torch.max(clip))
         for i in range(T):
             frame = clip[i].numpy()#.transpose(1,2,0)
             frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)

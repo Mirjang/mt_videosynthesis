@@ -109,7 +109,7 @@ class Visualizer():
                 ncols = min(ncols, len(visuals))
                 h, w = next(iter(visuals.values())).shape[2:4] #if first visual is a video these values will be garbage
                 for label, image in visuals.items(): 
-                    if not label.endswith("_video"):
+                    if not (label.endswith("_video") or label.endswith("_plt")):
                         h, w = image.shape[2:4]
                 height = int(width * h / float(w))
                 h = height
@@ -124,6 +124,7 @@ class Visualizer():
                 images = []
                 videos = []
                 video_labels = []
+                plts = []
                 idx = 0
                 for label, image in visuals.items():
                     #
@@ -137,6 +138,8 @@ class Visualizer():
                         else:
                             videos.append(image[:,[2,1,0],...].permute(0,2,3,1))
                             video_labels.append(label)
+                    elif label.endswith("_plt"):
+                        plts.append(image)
                     else:
                         image_numpy = util.tensor2im(image)
                         image_numpy = imresize(image_numpy, (h, w), interp='bicubic').astype(np.uint8).transpose(2,0,1)
@@ -169,6 +172,14 @@ class Visualizer():
                                 video = F.interpolate(video, size=(h,w))
                                 video = video.permute(0,2,3,1)
                             self.vis.video(video,win=self.display_id+3+vi,opts=dict(title=label, fps=self.opt.fps/self.opt.skip_frames))
+                    if len(plts)>0: 
+                        for pi, plt in enumerate(plts): 
+                            self.vis.line(
+                                X=plt["X"],
+                                Y=plt["Y"],
+                                opts=plt["opts"],
+                                win=self.display_id + 3 + len(videos) + pi)
+                                                        
                     label_html = '<table>%s</table>' % label_html
                     self.vis.text(table_css + label_html, win=self.display_id + 2,
                                   opts=dict(title=title + ' labels'))
@@ -195,13 +206,8 @@ class Visualizer():
         if self.use_html and (save_result or not self.saved):  # save images to a html file
             self.saved = True
             for label, image in visuals.items():
-                if label.endswith("_video"):
-                    if len(image.shape) is 5: 
-                        N,*_ = image.shape
-                        for v in range(N):
-                            pass
-                    else:
-                        pass
+                if label.endswith("_video") or label.endswith("_plt"):
+                    pass
                 else:
                     image_numpy = util.tensor2im(image)
                     img_path = os.path.join(self.img_dir, 'epoch%.3d_%s.png' % (epoch, label))
@@ -213,13 +219,8 @@ class Visualizer():
                 ims, txts, links = [], [], []
 
                 for label, image_numpy in visuals.items():
-                    if label.endswith("_video"):
-                        if len(image.shape) is 5: 
-                            N,*_ = image.shape
-                            for v in range(N):
-                                pass
-                        else:
-                            pass
+                    if label.endswith("_video") or label.endswith("_plt"):
+                        pass
                     else:
                         image_numpy = util.tensor2im(image)
                         img_path = 'epoch%.3d_%s.png' % (n, label)

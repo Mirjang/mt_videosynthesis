@@ -183,7 +183,13 @@ class SimpleVideoModel(BaseModel):
         self.loss_names = ['L1']
 
         # specify the images you want to save/display. The program will call base_model.get_current_visuals
-        self.visual_names = ["predicted_video", "target_video"]
+        self.visual_names = ["predicted_video", "target_video", "lossperframe_plt"]
+        self.lossperframe_plt = {"opts": {
+                    'title': "Loss per frame",
+                    'legend': ["L1 loss per frame"],
+                    'xlabel': 'frame',
+                    'ylabel': 'loss'}
+            }
 
         for i in range(self.num_display_frames): 
             self.visual_names += [f"frame_{i}"]
@@ -214,7 +220,7 @@ class SimpleVideoModel(BaseModel):
 
 
     def set_input(self, input):
-        self.target_video = input['VIDEO'].to(self.device).permute(0,1,4,2,3) / 256.0 #normalize to [0,1] for vis and stuff 
+        self.target_video = input['VIDEO'].to(self.device).permute(0,1,4,2,3).float() / 255.0 #normalize to [0,1] for vis and stuff 
         self.input = self.target_video[:,0,...]#first frame
         _, T, *_ = self.target_video.shape
         self.target_video = self.target_video[:, :min(T,self.nframes),...]
@@ -300,9 +306,20 @@ class SimpleVideoModel(BaseModel):
         self.optimizer.zero_grad()
         _, T,*_ = self.predicted_video.shape
         _, TT,*_ = self.target_video.shape
+
         T = min(T,TT) # just making sure to cut target if we didnt predict all the frames and to cut prediction, if we predicted more than target (i.e. we already messed up somewhere)
         ## loss = L1(prediction - target) 
-        self.loss_L1 = self.criterionL1(self.predicted_video[:,:T,...], self.target_video[:,:T,...])
+        #print(torch.min(self.target_video), torch.max(self.target_video))
+        self.loss_L1 = torch.zeros([1], device = self.device)
+        lpf=[]
+        for i in range(1,T):
+            l_i = self.criterionL1(self.predicted_video[:,i,...], self.target_video[:,i,...])
+            self.loss_L1 += l_i
+            lpf.append(l_i.item())
+        self.lossperframe_plt["Y"] = lpf
+        self.lossperframe_plt["X"] = list(range(1, len(lpf)+1))
+
+        #self.loss_L1 = self.criterionL1(self.predicted_video[:,:T,...], self.target_video[:,:T,...])
         self.loss_L1.backward()
         self.optimizer.step()
         # if self.trainRenderer:
