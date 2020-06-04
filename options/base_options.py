@@ -17,6 +17,8 @@ class BaseOptions():
         parser.add_argument('--batch_size', type=int, default=1, help='input batch size')
         parser.add_argument('--fineSize', type=int, default=512, help='then crop to this size')
         parser.add_argument('--display_winsize', type=int, default=256, help='display window size for both visdom and HTML')
+        parser.add_argument('--num_display_frames', type=int, default=8, help='display first n frames of predicted video')
+
         parser.add_argument('--input_nc', type=int, default=3, help='# of input image channels')
         parser.add_argument('--output_nc', type=int, default=3, help='# of output image channels')
         parser.add_argument('--ngf', type=int, default=64, help='# of gen filters in first conv layer')
@@ -53,10 +55,11 @@ class BaseOptions():
 
         parser.add_argument('--target_downsample_factor', type=int, default=1, help='super resolution')
 
+        parser.add_argument('--skip_frames', type=int, default=1, help='only use every n frames')
 
         parser.add_argument('--fps', type=int, default=30, help='video fps')
         parser.add_argument('--clips_file', type=str, default="info.csv", help='csv file containing dataset details')
-        parser.add_argument('--max_clip_length', type=float, default=3.0, help='max length of video clip in seconds')
+        parser.add_argument('--max_clip_length', type=float, default=2.0, help='max length of video clip in seconds')
 
 
         self.initialized = True

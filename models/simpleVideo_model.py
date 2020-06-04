@@ -84,9 +84,6 @@ class LSTMGeneratorNet(nn.Module):
         self.image_nc = image_nc
         self.hidden_dims = hidden_dims
 
-        
-
-
         self.lstm = ConvLSTMCell((640,360),image_nc, hidden_dims, (3,3), True)
         decoder = [nn.Conv2d(hidden_dims, image_nc, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="mirror")]
         decoder += [nn.Tanh()]
@@ -108,6 +105,55 @@ class LSTMGeneratorNet(nn.Module):
         out = (out+1) / 2.0 #[-1,1] -> [0,1] for vis 
         return out
 
+class LSTMEncoderDecoderNet(nn.Module): 
+    def __init__(self, nframes, image_nc=3, hidden_dims = 16):
+        super(LSTMEncoderDecoderNet, self).__init__()
+        self.nframes = nframes
+        self.image_nc = image_nc
+        self.hidden_dims = hidden_dims  
+
+        encoder = []
+
+        encoder += [nn.Conv2d(image_nc, 8, kernel_size=3, stride=1, dilation=1, bias=True, padding=1, padding_mode="mirror")]
+        encoder += [nn.LeakyReLU(0.2)]
+        encoder += [nn.AvgPool2d((2,2), stride = 2)]
+        encoder += [nn.Conv2d(8, 16, kernel_size=3, stride=1, dilation=1, bias=True, padding=1, padding_mode="mirror")]
+        encoder += [nn.BatchNorm2d(16)]
+        encoder += [nn.LeakyReLU(0.2)]
+        encoder += [nn.AvgPool2d((2,2), stride = 2)]
+
+        self.encoder = nn.Sequential(*encoder)
+
+        self.lstm = ConvLSTMCell((640,360), 16, hidden_dims, (3,3), True)
+        decoder = []
+        decoder += [nn.Upsample(scale_factor=2)]
+        decoder += [nn.Conv2d(hidden_dims, 4, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="mirror")]
+        decoder += [nn.LeakyReLU(0.2)]
+        decoder += [nn.Upsample(scale_factor=2)]
+        #decoder += [nn.ConvTranspose2d(hidden_dims, 8, kernel_size=3, stride=1, bias=True)]
+        decoder += [nn.Conv2d(4, image_nc, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="mirror")]
+        decoder += [nn.Tanh()]
+        self.decoder = nn.Sequential(*decoder)
+
+    def forward(self, x): 
+        x = x * 2 - 1 #[0,1] -> [-1,1]
+        N,C,H,W = x.shape 
+        out = torch.zeros((N,self.nframes,C,H,W), device = x.device)
+        out[:,0] = x
+
+
+        x = self.encoder(x)
+        N,C,H,W = x.shape 
+
+        h = torch.zeros((N,self.hidden_dims,H,W)).to(x.device)
+        c = torch.zeros((N,self.hidden_dims,H,W)).to(x.device)
+
+        for i in range(1,self.nframes):
+            h, c = self.lstm(x, (h,c))
+            out[:,i] = self.decoder(h)
+        #x = torch.reshape(x, (N,self.nframes,C,H,W))
+        out = (out+1) / 2.0 #[-1,1] -> [0,1] for vis 
+        return out
 
 class SimpleVideoModel(BaseModel):
     def name(self):
@@ -130,8 +176,9 @@ class SimpleVideoModel(BaseModel):
     def initialize(self, opt):
         BaseModel.initialize(self, opt)
         self.isTrain = opt.isTrain
-        self.num_display_frames = 4
-
+        self.num_display_frames = opt.num_display_frames
+        self.nframes = int(opt.max_clip_length * opt.fps / opt.skip_frames)
+        print(self.device)  
         # specify the training losses you want to print out. The program will call base_model.get_current_losses
         self.loss_names = ['L1']
 
@@ -148,10 +195,8 @@ class SimpleVideoModel(BaseModel):
             self.model_names = ['netG']
 
         # load/define networks
-        #self.netG = define_Renderer(opt.rendererType, opt.tex_features + 3, opt.ngf, opt.norm, not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
-        #self.netG = define_Renderer(opt.rendererType, opt.tex_features+2, opt.ngf, opt.norm, not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)#<<<<<<<<<<<<<<<<
 
-        netG = LSTMGeneratorNet(10,3)
+        netG = LSTMEncoderDecoderNet(self.nframes,opt.input_nc)
         self.netG = networks.init_net(netG, opt.init_type, opt.init_gain, self.gpu_ids)
 
         if self.isTrain:
@@ -169,18 +214,22 @@ class SimpleVideoModel(BaseModel):
 
 
     def set_input(self, input):
-        self.target = input['VIDEO'].to(self.device).permute(0,1,4,2,3) / 256.0 #normalize to [0,1] for vis and stuff 
-        self.input = self.target[:,0,...]#first frame
-        self.target_video = self.target[0, :150,...]
+        self.target_video = input['VIDEO'].to(self.device).permute(0,1,4,2,3) / 256.0 #normalize to [0,1] for vis and stuff 
+        self.input = self.target_video[:,0,...]#first frame
+        _, T, *_ = self.target_video.shape
+        self.target_video = self.target_video[:, :min(T,self.nframes),...]
 
 
     def forward(self):
 
         video = self.netG(self.input)
         self.predicted_video = video
-
-        for i in range(self.num_display_frames):
+        
+        for i in range(self.num_display_frames//2):
             setattr(self,f"frame_{i}", self.predicted_video[:,i,...] )
+        for i in range(self.num_display_frames//2):
+            ith_last = self.num_display_frames//2 -i +1
+            setattr(self,f"frame_{i + self.num_display_frames//2}", self.predicted_video[:,-ith_last,...] )
         video = video * 256
         return video.permute(0,1,3,4,2)
 
@@ -252,8 +301,8 @@ class SimpleVideoModel(BaseModel):
         self.optimizer.zero_grad()
         _, T,_,_,_ = self.predicted_video.shape
         ## loss = L1(texture - target) 
-        target = self.target[:,:T,...]
-    
+        target = self.target_video[:,:T,...]
+
         self.loss_L1 = self.criterionL1(self.predicted_video, target)
         self.loss_L1.backward()
         self.optimizer.step()

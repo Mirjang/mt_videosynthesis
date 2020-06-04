@@ -19,12 +19,11 @@ class VideoDataset(BaseDataset):
         #torchvision.set_video_backend("video_reader")
 
     def initialize(self, opt):
-        print(opt.dataroot)
-        print(opt.phase)
+        print(opt.dataroot,opt.phase)
         self.root = os.path.join(opt.dataroot, opt.phase)
         self.max_clip_length = opt.max_clip_length
         self.fps = opt.fps
-
+        self.skip_frames = opt.skip_frames
         self.df = pd.read_csv(os.path.join(self.root,opt.clips_file))
         self.len = int(min(opt.max_dataset_size, self.df.shape[0]))
 
@@ -34,9 +33,16 @@ class VideoDataset(BaseDataset):
     def __getitem__(self, index):
         clip = self.df.iloc[index]
         start = clip['start']
-        end = min(clip['end'], start + self.max_clip_length)
+        end = min(clip['end'], start + self.max_clip_length * self.skip_frames)
         frames, _, info = torchvision.io.read_video(os.path.join(self.root,clip['file_name']), start, end, pts_unit="sec")
         
+        if self.skip_frames>1: 
+            T,C,H,W = frames.shape
+            skipped = torch.zeros(T//self.skip_frames, C,H,W)
+            for i in range(T//self.skip_frames):
+                skipped[i] = frames[i*self.skip_frames]
+            frames = skipped
+
         return {'VIDEO':frames}
 
 

@@ -52,8 +52,8 @@ def move_files(source, dest, override = True):
                 continue
         shutil.move(os.path.join(source,f), dest)        
 
-def download_by_keyword(keyword, max_results= 1e3, path ="./tmp", retries = 5, max_workers = 8, override_existing = False,min_res="240p", max_res="720p"): 
-    san_key = keyword.strip().replace(" ", "_")
+def download_by_keyword(keyword, max_results= 1e3,dir_name = None, path ="./tmp", retries = 5, max_workers = 8, override_existing = False,min_res="240p", max_res="720p"): 
+    san_key = keyword.strip().replace(" ", "_") if not dir_name else dir_name
     path = os.path.join(path, san_key)
     
     index = 0

@@ -77,6 +77,7 @@ class Visualizer():
         self.win_size = opt.display_winsize
         self.name = opt.name
         self.opt = opt
+
         self.saved = False
         if self.display_id > 0:
             import visdom
@@ -147,11 +148,11 @@ class Visualizer():
                     if idx % ncols == 0:
                         label_html += '<tr>%s</tr>' % label_html_row
                         label_html_row = ''
-                white_image = np.ones((3,h,w), dtype = np.uint8) * 255
-                while idx % ncols != 0:
-                    images.append(white_image)
-                    label_html_row += '<td></td>'
-                    idx += 1
+                # white_image = np.ones((3,h,w), dtype = np.uint8) * 255
+                # while idx % ncols != 0:
+                #     images.append(white_image)
+                #     label_html_row += '<td></td>'
+                #     idx += 1
                 if label_html_row != '':
                     label_html += '<tr>%s</tr>' % label_html_row
                 # pane col = image row
@@ -162,7 +163,7 @@ class Visualizer():
                         self.vis.images(images, nrow=ncols, win=self.display_id + 1, padding=1, opts=dict(title=title + ' images'))
                     if len(videos)>0: 
                         for vi,(label,video) in enumerate(zip(video_labels,videos)): 
-                            self.vis.video(video,win=self.display_id+3+vi,opts=dict(title=label))
+                            self.vis.video(video,win=self.display_id+3+vi,opts=dict(title=label, fps=self.opt.fps/self.opt.skip_frames))
                     label_html = '<table>%s</table>' % label_html
                     self.vis.text(table_css + label_html, win=self.display_id + 2,
                                   opts=dict(title=title + ' labels'))
@@ -176,9 +177,9 @@ class Visualizer():
                         if len(image.shape) is 5: 
                             N,*_ = image.shape
                             for v in range(N):
-                                self.vis.video(image[v,:,[2,1,0],...].permute(0,2,3,1),win=self.display_id + idx)
+                                self.vis.video(image[v,:,[2,1,0],...].permute(0,2,3,1),win=self.display_id + idx,opts=dict(title=label, fps=self.opt.fps/self.opt.skip_frames))
                         else:
-                            self.vis.video(image[:,[2,1,0],...].permute(0,2,3,1),win=self.display_id + idx)
+                            self.vis.video(image[:,[2,1,0],...].permute(0,2,3,1),win=self.display_id + idx,opts=dict(title=label, fps=self.opt.fps/self.opt.skip_frames))
                         
                     else:
                         image_numpy = util.tensor2im(image)
