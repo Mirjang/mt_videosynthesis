@@ -7,7 +7,7 @@ from . import util
 from . import html
 from skimage.transform import resize
 from PIL import Image
-
+import torch.nn.functional as F
 
 
 if sys.version_info[0] == 2:
@@ -163,6 +163,11 @@ class Visualizer():
                         self.vis.images(images, nrow=ncols, win=self.display_id + 1, padding=1, opts=dict(title=title + ' images'))
                     if len(videos)>0: 
                         for vi,(label,video) in enumerate(zip(video_labels,videos)): 
+                            T,C,H,W = video.shape
+                            if W < width:
+                                video = video.permute(0,3,1,2)
+                                video = F.interpolate(video, size=(h,w))
+                                video = video.permute(0,2,3,1)
                             self.vis.video(video,win=self.display_id+3+vi,opts=dict(title=label, fps=self.opt.fps/self.opt.skip_frames))
                     label_html = '<table>%s</table>' % label_html
                     self.vis.text(table_css + label_html, win=self.display_id + 2,

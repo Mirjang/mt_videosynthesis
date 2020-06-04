@@ -219,7 +219,6 @@ class SimpleVideoModel(BaseModel):
         _, T, *_ = self.target_video.shape
         self.target_video = self.target_video[:, :min(T,self.nframes),...]
 
-
     def forward(self):
 
         video = self.netG(self.input)
@@ -299,11 +298,11 @@ class SimpleVideoModel(BaseModel):
         self.forward()
 
         self.optimizer.zero_grad()
-        _, T,_,_,_ = self.predicted_video.shape
-        ## loss = L1(texture - target) 
-        target = self.target_video[:,:T,...]
-
-        self.loss_L1 = self.criterionL1(self.predicted_video, target)
+        _, T,*_ = self.predicted_video.shape
+        _, TT,*_ = self.target_video.shape
+        T = min(T,TT) # just making sure to cut target if we didnt predict all the frames and to cut prediction, if we predicted more than target (i.e. we already messed up somewhere)
+        ## loss = L1(prediction - target) 
+        self.loss_L1 = self.criterionL1(self.predicted_video[:,:T,...], self.target_video[:,:T,...])
         self.loss_L1.backward()
         self.optimizer.step()
         # if self.trainRenderer:

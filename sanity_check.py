@@ -16,7 +16,7 @@ if __name__ == '__main__':
     opt.max_dataset_size = 1
     opt.batchsize = 1
     opt.print_freq=1
-    opt.display_freq = 5
+    opt.display_freq = 1
     opt.update_html_freq =5
     opt.lr = .004
 

@@ -19,7 +19,6 @@ class VideoDataset(BaseDataset):
         #torchvision.set_video_backend("video_reader")
 
     def initialize(self, opt):
-        print(opt.dataroot,opt.phase)
         self.root = os.path.join(opt.dataroot, opt.phase)
         self.max_clip_length = opt.max_clip_length
         self.fps = opt.fps
