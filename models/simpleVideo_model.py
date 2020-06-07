@@ -178,6 +178,7 @@ class SimpleVideoModel(BaseModel):
         self.isTrain = opt.isTrain
         self.num_display_frames = opt.num_display_frames
         self.nframes = int(opt.max_clip_length * opt.fps / opt.skip_frames)
+        self.opt = opt
         print(self.device)  
         # specify the training losses you want to print out. The program will call base_model.get_current_losses
         self.loss_names = ['L1']
@@ -188,7 +189,8 @@ class SimpleVideoModel(BaseModel):
                     'title': "Loss per frame",
                     'legend': ["L1 loss per frame"],
                     'xlabel': 'frame',
-                    'ylabel': 'loss'}
+                    'ylabel': 'loss',
+                    } ,
             }
 
         for i in range(self.num_display_frames): 
@@ -213,7 +215,7 @@ class SimpleVideoModel(BaseModel):
 
             # initialize optimizers
             self.optimizers = []
-            #self.optimizer = torch.optim.SGD(self.texture.parameters(), opt.lr)
+            #self.optimizer = torch.optim.SGD(self.netG.parameters(), opt.lr)
             self.optimizer = torch.optim.Adam(self.netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizers.append(self.optimizer)
 
@@ -225,8 +227,9 @@ class SimpleVideoModel(BaseModel):
         _, T, *_ = self.target_video.shape
         self.target_video = self.target_video[:, :min(T,self.nframes),...]
 
-    def forward(self):
-
+    def forward(self, frame_length = -1):
+        if hasattr(self.netG, "nFrames"):
+            self.netG.nFrames = frame_length if frame_length>0 else self.nframes
         video = self.netG(self.input)
         self.predicted_video = video
         
@@ -237,6 +240,12 @@ class SimpleVideoModel(BaseModel):
             setattr(self,f"frame_{i + self.num_display_frames//2}", self.predicted_video[:,-ith_last,...] )
         video = video * 256
         return video.permute(0,1,3,4,2)
+
+
+    def epoch_frame_length(self, epoch): 
+        increase_intervals = 10
+        iter_per_interval = 20
+        return max(2,min(self.nframes // increase_intervals * (epoch // iter_per_interval +1), self.nframes))
 
 
     def backward_D(self):
@@ -301,13 +310,20 @@ class SimpleVideoModel(BaseModel):
         self.loss_G.backward()
 
     def optimize_parameters(self, epoch_iter):
-        self.forward()
+        Te = self.epoch_frame_length(epoch_iter)
+        self.forward(frame_length=Te)
+
+        if epoch_iter == 20: #restart adam to clear momemtum from poor init
+            self.optimizers = []
+            #self.optimizer = torch.optim.SGD(self.netG.parameters(), opt.lr)
+            self.optimizer = torch.optim.Adam(self.netG.parameters(), lr=self.opt.lr, betas=(self.opt.beta1, 0.999))
+            self.optimizers.append(self.optimizer)
 
         self.optimizer.zero_grad()
         _, T,*_ = self.predicted_video.shape
         _, TT,*_ = self.target_video.shape
 
-        T = min(T,TT) # just making sure to cut target if we didnt predict all the frames and to cut prediction, if we predicted more than target (i.e. we already messed up somewhere)
+        T = min(T,TT,Te) # just making sure to cut target if we didnt predict all the frames and to cut prediction, if we predicted more than target (i.e. we already messed up somewhere)
         ## loss = L1(prediction - target) 
         #print(torch.min(self.target_video), torch.max(self.target_video))
         self.loss_L1 = torch.zeros([1], device = self.device)
@@ -316,7 +332,9 @@ class SimpleVideoModel(BaseModel):
             l_i = self.criterionL1(self.predicted_video[:,i,...], self.target_video[:,i,...])
             self.loss_L1 += l_i
             lpf.append(l_i.item())
+        self.loss_L1 = self.loss_L1/T
         self.lossperframe_plt["Y"] = lpf
+
         self.lossperframe_plt["X"] = list(range(1, len(lpf)+1))
 
         #self.loss_L1 = self.criterionL1(self.predicted_video[:,:T,...], self.target_video[:,:T,...])

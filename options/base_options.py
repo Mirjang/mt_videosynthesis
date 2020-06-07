@@ -60,6 +60,7 @@ class BaseOptions():
         parser.add_argument('--fps', type=int, default=30, help='video fps')
         parser.add_argument('--clips_file', type=str, default="info.csv", help='csv file containing dataset details')
         parser.add_argument('--max_clip_length', type=float, default=2.0, help='max length of video clip in seconds')
+        parser.add_argument('--max_per_frame_losses', type=int, default=10, help='display last n per frame losses')
 
 
         self.initialized = True

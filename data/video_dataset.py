@@ -3,6 +3,7 @@ import torchvision
 import pandas as pd
 import sys
 import os
+import random
 from data.base_dataset import BaseDataset
 
 class Clip(): 
@@ -31,8 +32,8 @@ class VideoDataset(BaseDataset):
 
     def __getitem__(self, index):
         clip = self.df.iloc[index]
-        start = clip['start']
-        end = min(clip['end'], start + self.max_clip_length * self.skip_frames)
+        start = random.randint(clip['start'], clip['end'] - self.max_clip_length)
+        end = min(start + self.max_clip_length, clip['end'])
         frames, _, info = torchvision.io.read_video(os.path.join(self.root,clip['file_name']), start, end, pts_unit="sec")
         
         if self.skip_frames>1: 
