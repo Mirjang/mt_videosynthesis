@@ -117,14 +117,14 @@ class LSTMEncoderDecoderNet(nn.Module):
         encoder += [nn.Conv2d(image_nc, 8, kernel_size=3, stride=1, dilation=1, bias=True, padding=1, padding_mode="mirror")]
         encoder += [nn.LeakyReLU(0.2)]
         encoder += [nn.AvgPool2d((2,2), stride = 2)]
-        encoder += [nn.Conv2d(8, 16, kernel_size=3, stride=1, dilation=1, bias=True, padding=1, padding_mode="mirror")]
-        encoder += [nn.BatchNorm2d(16)]
+        encoder += [nn.Conv2d(8, hidden_dims, kernel_size=3, stride=1, dilation=1, bias=True, padding=1, padding_mode="mirror")]
+        encoder += [nn.BatchNorm2d(hidden_dims)]
         encoder += [nn.LeakyReLU(0.2)]
         encoder += [nn.AvgPool2d((2,2), stride = 2)]
 
         self.encoder = nn.Sequential(*encoder)
 
-        self.lstm = ConvLSTMCell((640,360), 16, hidden_dims, (3,3), True)
+        self.lstm = ConvLSTMCell((640,360), hidden_dims, hidden_dims, (3,3), True)
         decoder = []
         decoder += [nn.Upsample(scale_factor=2)]
         decoder += [nn.Conv2d(hidden_dims, 4, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="mirror")]
@@ -145,8 +145,13 @@ class LSTMEncoderDecoderNet(nn.Module):
         x = self.encoder(x)
         N,C,H,W = x.shape 
 
-        h = torch.zeros((N,self.hidden_dims,H,W)).to(x.device)
-        c = torch.zeros((N,self.hidden_dims,H,W)).to(x.device)
+        # h = torch.zeros((N,self.hidden_dims,H,W)).to(x.device)
+        # c = torch.zeros((N,self.hidden_dims,H,W)).to(x.device)
+        #h,c = x,x
+
+        h = torch.rand((N,self.hidden_dims,H,W)).to(x.device) *2 - 1
+        c = torch.rand((N,self.hidden_dims,H,W)).to(x.device) *2 - 1
+
 
         for i in range(1,self.nframes):
             h, c = self.lstm(x, (h,c))
@@ -187,10 +192,11 @@ class SimpleVideoModel(BaseModel):
         self.visual_names = ["predicted_video", "target_video", "lossperframe_plt"]
         self.lossperframe_plt = {"opts": {
                     'title': "Loss per frame",
-                    'legend': ["L1 loss per frame"],
+                    #'legend': ["L1 loss per frame"],
                     'xlabel': 'frame',
                     'ylabel': 'loss',
                     } ,
+                    "Y":np.array((1,1)), "X":np.array((1,1))
             }
 
         for i in range(self.num_display_frames): 
@@ -204,7 +210,7 @@ class SimpleVideoModel(BaseModel):
 
         # load/define networks
 
-        netG = LSTMEncoderDecoderNet(self.nframes,opt.input_nc)
+        netG = LSTMEncoderDecoderNet(self.nframes,opt.input_nc, hidden_dims=16)
         self.netG = networks.init_net(netG, opt.init_type, opt.init_gain, self.gpu_ids)
 
         if self.isTrain:
@@ -245,7 +251,7 @@ class SimpleVideoModel(BaseModel):
     def epoch_frame_length(self, epoch): 
         increase_intervals = 10
         iter_per_interval = 20
-        return max(2,min(self.nframes // increase_intervals * (epoch // iter_per_interval +1), self.nframes))
+        return max(8,min(self.nframes // increase_intervals * (epoch // iter_per_interval +1), self.nframes))
 
 
     def backward_D(self):
@@ -334,8 +340,8 @@ class SimpleVideoModel(BaseModel):
             lpf.append(l_i.item())
         self.loss_L1 = self.loss_L1/T
         self.lossperframe_plt["Y"] = lpf
+        self.lossperframe_plt["X"] =list(range(1, len(lpf)+1))
 
-        self.lossperframe_plt["X"] = list(range(1, len(lpf)+1))
 
         #self.loss_L1 = self.criterionL1(self.predicted_video[:,:T,...], self.target_video[:,:T,...])
         self.loss_L1.backward()
