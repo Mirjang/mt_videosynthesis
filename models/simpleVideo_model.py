@@ -114,11 +114,13 @@ class LSTMEncoderDecoderNet(nn.Module):
 
         encoder = []
 
-        encoder += [nn.Conv2d(image_nc, 8, kernel_size=3, stride=1, dilation=1, bias=True, padding=1, padding_mode="mirror")]
+        encoder += [nn.Conv2d(image_nc, 8, kernel_size=3, bias=True, padding=1, padding_mode="mirror")]
         encoder += [nn.LeakyReLU(0.2)]
         encoder += [nn.AvgPool2d((2,2), stride = 2)]
-        encoder += [nn.Conv2d(8, hidden_dims, kernel_size=3, stride=1, dilation=1, bias=True, padding=1, padding_mode="mirror")]
-        encoder += [nn.BatchNorm2d(hidden_dims)]
+        encoder += [nn.Conv2d(8, 16, kernel_size=3, bias=True, padding=1, padding_mode="mirror")]
+        encoder += [nn.LeakyReLU(0.2)]
+        encoder += [nn.AvgPool2d((2,2), stride = 2)]
+        encoder += [nn.Conv2d(16, hidden_dims, kernel_size=3, bias=True, padding=1, padding_mode="mirror")]
         encoder += [nn.LeakyReLU(0.2)]
         encoder += [nn.AvgPool2d((2,2), stride = 2)]
 
@@ -127,11 +129,13 @@ class LSTMEncoderDecoderNet(nn.Module):
         self.lstm = ConvLSTMCell((640,360), hidden_dims, hidden_dims, (3,3), True)
         decoder = []
         decoder += [nn.Upsample(scale_factor=2)]
-        decoder += [nn.Conv2d(hidden_dims, 4, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="mirror")]
+        decoder += [nn.Conv2d(hidden_dims, 16, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="mirror")]
         decoder += [nn.LeakyReLU(0.2)]
         decoder += [nn.Upsample(scale_factor=2)]
-        #decoder += [nn.ConvTranspose2d(hidden_dims, 8, kernel_size=3, stride=1, bias=True)]
-        decoder += [nn.Conv2d(4, image_nc, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="mirror")]
+        decoder += [nn.Conv2d(16, 8, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="mirror")]
+        decoder += [nn.LeakyReLU(0.2)]
+        decoder += [nn.Upsample(scale_factor=2)]
+        decoder += [nn.Conv2d(8, image_nc, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="mirror")]
         decoder += [nn.Tanh()]
         self.decoder = nn.Sequential(*decoder)
 
@@ -210,7 +214,7 @@ class SimpleVideoModel(BaseModel):
 
         # load/define networks
 
-        netG = LSTMEncoderDecoderNet(self.nframes,opt.input_nc, hidden_dims=16)
+        netG = LSTMEncoderDecoderNet(self.nframes,opt.input_nc, hidden_dims=32)
         self.netG = networks.init_net(netG, opt.init_type, opt.init_gain, self.gpu_ids)
 
         if self.isTrain:
