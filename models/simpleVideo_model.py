@@ -6,7 +6,7 @@ from . import networks
 import numpy as np
 import functools
 
-from .networks import VGG16, UnetSkipConnectionBlock, ConvLSTMCell
+from .networks import VGG16, UnetSkipConnectionBlock, ConvLSTMCell, ConvGRUCell
 
 ################
 ###  HELPER  ###
@@ -31,12 +31,12 @@ class ConvLiftNet(nn.Module):
         super(ConvLiftNet, self).__init__()
         self.nframes = nframes
         self.image_nc = image_nc
-        #model = [nn.Conv2d(image_nc, image_nc*nframes, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="mirror")]
-        model = [nn.Conv3d(1, nframes, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="mirror")]
+        #model = [nn.Conv2d(image_nc, image_nc*nframes, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="reflect")]
+        model = [nn.Conv3d(1, nframes, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="reflect")]
         model += [nn.LeakyReLU(0.2)]
-        model += [nn.Conv3d(nframes, nframes, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="mirror")]
+        model += [nn.Conv3d(nframes, nframes, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="reflect")]
         model += [nn.LeakyReLU(0.2)]
-        model += [nn.Conv3d(nframes, nframes, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="mirror")]
+        model += [nn.Conv3d(nframes, nframes, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="reflect")]
 
         model += [nn.Tanh()]
         self.model = nn.Sequential(*model)
@@ -114,55 +114,102 @@ class LSTMEncoderDecoderNet(nn.Module):
 
         encoder = []
 
-        encoder += [nn.Conv2d(image_nc, 8, kernel_size=3, bias=True, padding=1, padding_mode="mirror")]
-        encoder += [nn.LeakyReLU(0.2)]
-        encoder += [nn.AvgPool2d((2,2), stride = 2)]
-        encoder += [nn.Conv2d(8, 16, kernel_size=3, bias=True, padding=1, padding_mode="mirror")]
-        encoder += [nn.LeakyReLU(0.2)]
-        encoder += [nn.AvgPool2d((2,2), stride = 2)]
-        encoder += [nn.Conv2d(16, hidden_dims, kernel_size=3, bias=True, padding=1, padding_mode="mirror")]
-        encoder += [nn.LeakyReLU(0.2)]
-        encoder += [nn.AvgPool2d((2,2), stride = 2)]
+        def conv_relu(in_dims, out_dims, stride = 1): 
+            layer = [nn.Conv2d(in_dims, out_dims, kernel_size=3, bias=True, padding=1, stride=stride, padding_mode="reflect")]
+            layer += [nn.LeakyReLU(0.2)]
+            return layer
+
+        encoder += conv_relu(image_nc,16, stride = 2)
+        encoder += conv_relu(16,32, stride = 2)
+        encoder += conv_relu(32,64, stride = 1)
+        encoder += conv_relu(64,hidden_dims)
+
 
         self.encoder = nn.Sequential(*encoder)
 
-        self.lstm = ConvLSTMCell((640,360), hidden_dims, hidden_dims, (3,3), True)
+        enc2hidden = conv_relu(hidden_dims,hidden_dims)
+        enc2cell = conv_relu(hidden_dims,hidden_dims)
+        
+        self.enc2hidden = nn.Sequential(*enc2hidden)
+        self.enc2cell = nn.Sequential(*enc2cell)
+
+        self.lstm = ConvLSTMCell(hidden_dims, hidden_dims, (3,3), True)
         decoder = []
         decoder += [nn.Upsample(scale_factor=2)]
-        decoder += [nn.Conv2d(hidden_dims, 16, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="mirror")]
-        decoder += [nn.LeakyReLU(0.2)]
+        decoder += conv_relu(hidden_dims,32)
+        decoder += conv_relu(32,16)
+
         decoder += [nn.Upsample(scale_factor=2)]
-        decoder += [nn.Conv2d(16, 8, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="mirror")]
-        decoder += [nn.LeakyReLU(0.2)]
-        decoder += [nn.Upsample(scale_factor=2)]
-        decoder += [nn.Conv2d(8, image_nc, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="mirror")]
+        decoder += [nn.Conv2d(16, image_nc, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="reflect")]
         decoder += [nn.Tanh()]
         self.decoder = nn.Sequential(*decoder)
 
+class GRUEncoderDecoderNet(nn.Module): 
+    def __init__(self, nframes, image_nc=3, hidden_dims = 16):
+        super(GRUEncoderDecoderNet, self).__init__()
+        self.nframes = nframes
+        self.image_nc = image_nc
+        self.hidden_dims = hidden_dims  
+
+        encoder = []
+
+        def conv_relu(in_dims, out_dims, stride = 1): 
+            layer = [nn.Conv2d(in_dims, out_dims, kernel_size=3, bias=True, padding=1, stride=stride, padding_mode="reflect")]
+            layer += [nn.LeakyReLU(0.2)]
+            return layer
+
+        encoder += conv_relu(image_nc,16, stride = 2)
+        encoder += conv_relu(16,32, stride = 2)
+        encoder += conv_relu(32,64, stride = 1)
+        encoder += conv_relu(64,hidden_dims)
+
+
+        self.encoder = nn.Sequential(*encoder)
+
+        enc2hidden = conv_relu(hidden_dims,hidden_dims)
+        enc2cell = conv_relu(hidden_dims,hidden_dims)
+        
+        self.enc2hidden = nn.Sequential(*enc2hidden)
+
+        self.lstm = ConvGRUCell(hidden_dims, hidden_dims, (3,3), True)
+        decoder = []
+        decoder += [nn.Upsample(scale_factor=2)]
+        decoder += conv_relu(hidden_dims,32)
+        decoder += conv_relu(32,16)
+
+        decoder += [nn.Upsample(scale_factor=2)]
+        decoder += [nn.Conv2d(16, image_nc, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="reflect")]
+        decoder += [nn.Tanh()]
+        self.decoder = nn.Sequential(*decoder)
+
+
+
     def forward(self, x): 
         x = x * 2 - 1 #[0,1] -> [-1,1]
-        N,C,H,W = x.shape 
+        if len(x.shape) == 4: 
+            x = x.unsqueeze(1)
+
+        N,T,C,H,W = x.shape
         out = torch.zeros((N,self.nframes,C,H,W), device = x.device)
         out[:,0] = x
 
-
-        x = self.encoder(x)
-        N,C,H,W = x.shape 
-
-        # h = torch.zeros((N,self.hidden_dims,H,W)).to(x.device)
-        # c = torch.zeros((N,self.hidden_dims,H,W)).to(x.device)
-        #h,c = x,x
-
-        h = torch.rand((N,self.hidden_dims,H,W)).to(x.device) *2 - 1
-        c = torch.rand((N,self.hidden_dims,H,W)).to(x.device) *2 - 1
-
+        h = self.enc2hidden(x[:,0,...])
 
         for i in range(1,self.nframes):
-            h, c = self.lstm(x, (h,c))
-            out[:,i] = self.decoder(h)
+            
+            if i<T: # frame was provided as input
+                x_i = x[:,i,...]
+            x_i = self.encoder(x_i)
+
+            h, c = self.lstm(x_i, h)
+            x_i = self.decoder(h)
+            out[:,i] = x_i
         #x = torch.reshape(x, (N,self.nframes,C,H,W))
         out = (out+1) / 2.0 #[-1,1] -> [0,1] for vis 
         return out
+
+
+
 
 class SimpleVideoModel(BaseModel):
     def name(self):
@@ -185,7 +232,7 @@ class SimpleVideoModel(BaseModel):
     def initialize(self, opt):
         BaseModel.initialize(self, opt)
         self.isTrain = opt.isTrain
-        self.num_display_frames = opt.num_display_frames
+        self.num_display_frames = min(opt.num_display_frames, int(opt.max_clip_length*opt.fps)-1)
         self.nframes = int(opt.max_clip_length * opt.fps / opt.skip_frames)
         self.opt = opt
         print(self.device)  
@@ -193,14 +240,14 @@ class SimpleVideoModel(BaseModel):
         self.loss_names = ['L1']
 
         # specify the images you want to save/display. The program will call base_model.get_current_visuals
-        self.visual_names = ["predicted_video", "target_video", "lossperframe_plt"]
+        self.visual_names = ["prediction_target_video", "lossperframe_plt"]
         self.lossperframe_plt = {"opts": {
                     'title': "Loss per frame",
                     #'legend': ["L1 loss per frame"],
                     'xlabel': 'frame',
                     'ylabel': 'loss',
                     } ,
-                    "Y":np.array((1,1)), "X":np.array((1,1))
+          #          "Y":np.array((1,1)), "X":np.array((1,1))
             }
 
         for i in range(self.num_display_frames): 
@@ -214,7 +261,7 @@ class SimpleVideoModel(BaseModel):
 
         # load/define networks
 
-        netG = LSTMEncoderDecoderNet(self.nframes,opt.input_nc, hidden_dims=32)
+        netG = GRUEncoderDecoderNet(self.nframes,opt.input_nc, hidden_dims=64)
         self.netG = networks.init_net(netG, opt.init_type, opt.init_gain, self.gpu_ids)
 
         if self.isTrain:
@@ -242,7 +289,8 @@ class SimpleVideoModel(BaseModel):
             self.netG.nFrames = frame_length if frame_length>0 else self.nframes
         video = self.netG(self.input)
         self.predicted_video = video
-        
+        self.prediction_target_video = torch.cat([self.predicted_video, self.target_video], dim = 4)
+
         for i in range(self.num_display_frames//2):
             setattr(self,f"frame_{i}", self.predicted_video[:,i,...] )
         for i in range(self.num_display_frames//2):
@@ -323,15 +371,18 @@ class SimpleVideoModel(BaseModel):
         Te = self.epoch_frame_length(epoch_iter)
         self.forward(frame_length=Te)
 
-        if epoch_iter == 20: #restart adam to clear momemtum from poor init
+        if epoch_iter == 50: #restart adam to clear momemtum from poor init
             self.optimizers = []
             #self.optimizer = torch.optim.SGD(self.netG.parameters(), opt.lr)
-            self.optimizer = torch.optim.Adam(self.netG.parameters(), lr=self.opt.lr, betas=(self.opt.beta1, 0.999))
+            #self.optimizer = torch.optim.Adam(self.netG.parameters(), lr=self.opt.lr, betas=(self.opt.beta1, 0.999))
             self.optimizers.append(self.optimizer)
 
         self.optimizer.zero_grad()
         _, T,*_ = self.predicted_video.shape
         _, TT,*_ = self.target_video.shape
+
+        # print(torch.min(self.predicted_video), torch.max(self.predicted_video))
+        # print(torch.min(self.target_video), torch.max(self.target_video))
 
         T = min(T,TT,Te) # just making sure to cut target if we didnt predict all the frames and to cut prediction, if we predicted more than target (i.e. we already messed up somewhere)
         ## loss = L1(prediction - target) 
@@ -342,7 +393,7 @@ class SimpleVideoModel(BaseModel):
             l_i = self.criterionL1(self.predicted_video[:,i,...], self.target_video[:,i,...])
             self.loss_L1 += l_i
             lpf.append(l_i.item())
-        self.loss_L1 = self.loss_L1/T
+        self.loss_L1 = self.criterionL1(self.predicted_video[:,:T,...], self.target_video[:,:T,...])
         self.lossperframe_plt["Y"] = lpf
         self.lossperframe_plt["X"] =list(range(1, len(lpf)+1))
 

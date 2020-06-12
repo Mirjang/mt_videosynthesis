@@ -33,7 +33,7 @@ def download_video(video, path, retries = 5, min_res="240p", max_res="720p"):
         if not stream: 
             return None
         stream.download(path, filename = filename)
-        return [video['video_id'], filename + "." + stream.mime_type.split("/")[1], stream.resolution, stream.fps]
+        return [video['video_id'], filename + "." + stream.mime_type.split("/")[1], stream.resolution, stream.fps, 0.0, dl.length]
 
        except Exception as e:
            print(f"Exception {e} while downloading: {url} ...retrying {i+1}/{retries}")
@@ -89,7 +89,7 @@ def download_by_keyword(keyword, max_results= 1e3,dir_name = None, path ="./tmp"
 
         results = [future.result() for future in concurrent.futures.as_completed(futures) if future.result()]
 
-        df = pd.DataFrame(results, columns = ['video_id', 'file_name', 'resolution', 'fps'])
+        df = pd.DataFrame(results, columns = ['video_id', 'file_name', 'resolution', 'fps', 'start', 'end'])
 
         meta_file = os.path.join(path, "info.csv")
         write_header = True
