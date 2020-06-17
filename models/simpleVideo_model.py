@@ -171,7 +171,7 @@ class GRUEncoderDecoderNet(nn.Module):
         
         self.enc2hidden = nn.Sequential(*enc2hidden)
 
-        self.lstm = ConvGRUCell(hidden_dims, hidden_dims, (3,3), True)
+        self.gru = ConvGRUCell(hidden_dims, hidden_dims, (3,3), True)
         decoder = []
         decoder += [nn.Upsample(scale_factor=2)]
         decoder += conv_relu(hidden_dims,32)
@@ -191,17 +191,20 @@ class GRUEncoderDecoderNet(nn.Module):
 
         N,T,C,H,W = x.shape
         out = torch.zeros((N,self.nframes,C,H,W), device = x.device)
-        out[:,0] = x
-
-        h = self.enc2hidden(x[:,0,...])
+        out[:,0] = x[:,0,...]
+        h = None
 
         for i in range(1,self.nframes):
             
-            if i<T: # frame was provided as input
-                x_i = x[:,i,...]
+            if i<=T: # frame was provided as input
+                x_i = x[:,i-1,...]
+
             x_i = self.encoder(x_i)
 
-            h, c = self.lstm(x_i, h)
+            if h is None: 
+                h = self.enc2hidden(x_i)
+
+            h = self.gru(x_i, h)
             x_i = self.decoder(h)
             out[:,i] = x_i
         #x = torch.reshape(x, (N,self.nframes,C,H,W))
@@ -284,10 +287,13 @@ class SimpleVideoModel(BaseModel):
         _, T, *_ = self.target_video.shape
         self.target_video = self.target_video[:, :min(T,self.nframes),...]
 
-    def forward(self, frame_length = -1):
+    def forward(self, frame_length = -1, train = True):
         if hasattr(self.netG, "nFrames"):
             self.netG.nFrames = frame_length if frame_length>0 else self.nframes
-        video = self.netG(self.input)
+        if train and self.opt.train_from_video: 
+            video = self.netG(self.target_video)
+        else:
+            video = self.netG(self.input)
         self.predicted_video = video
         self.prediction_target_video = torch.cat([self.predicted_video, self.target_video], dim = 4)
 
@@ -416,3 +422,32 @@ class SimpleVideoModel(BaseModel):
         #     self.backward_G(epoch_iter)
 
         #     self.optimizer_G.step()
+
+
+    def validate(self, secs = 2, fps = 30): 
+        T = secs * fps *1.0
+        with torch.no_grad():
+            self.netG.eval()
+            self.forward(frame_length=T, train=False)
+            self.netG.train()
+
+            _, T,*_ = self.predicted_video.shape
+            _, TT,*_ = self.target_video.shape
+
+            # print(torch.min(self.predicted_video), torch.max(self.predicted_video))
+            # print(torch.min(self.target_video), torch.max(self.target_video))
+
+            T = min(T,TT,Te) # just making sure to cut target if we didnt predict all the frames and to cut prediction, if we predicted more than target (i.e. we already messed up somewhere)
+            ## loss = L1(prediction - target) 
+            #print(torch.min(self.target_video), torch.max(self.target_video))
+            loss_L1 = torch.zeros([1], device = self.device)
+            lpf=[]
+            for i in range(1,T):
+                l_i = self.criterionL1(self.predicted_video[:,i,...], self.target_video[:,i,...])
+                loss_L1 += l_i
+                lpf.append(l_i.item())
+            loss_L1 = sum(lpf)
+        lossperframe_plt["Y"] = lpf
+        lossperframe_plt["X"] =list(range(1, len(lpf)+1))
+
+        return loss_L1, lpf
