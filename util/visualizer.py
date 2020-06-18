@@ -94,6 +94,9 @@ class Visualizer():
             now = time.strftime("%c")
             log_file.write('================ Training Loss (%s) ================\n' % now)
 
+
+        self.display_ids = {}
+
     def reset(self):
         self.saved = False
 
@@ -139,7 +142,7 @@ class Visualizer():
                             videos.append(image[:,[2,1,0],...].permute(0,2,3,1))
                             video_labels.append(label)
                     elif label.endswith("_plt"):
-                        plts.append(image)
+                        plts.append((label,image))
                     else:
                         image_numpy = util.tensor2im(image)
                         image_numpy = imresize(image_numpy, (h, w), interp='bicubic').astype(np.uint8).transpose(2,0,1)
@@ -166,23 +169,35 @@ class Visualizer():
                         self.vis.images(images, nrow=ncols, win=self.display_id + 1, padding=1, opts=dict(title=title + ' images'))
                     if len(videos)>0: 
                         for vi,(label,video) in enumerate(zip(video_labels,videos)): 
+                            
+                            id = self.display_ids[label]
+                            if id is None: 
+                                id = len(self.display_ids)
+                                self.display_ids[label] = id
+
                             T,C,H,W = video.shape
                             if W < width:
                                 video = video.permute(0,3,1,2)
                                 video = F.interpolate(video, size=(h,w))
                                 video = video.permute(0,2,3,1)
-                            self.vis.video(video,win=self.display_id+3+vi,opts=dict(title=label, fps=self.opt.fps/self.opt.skip_frames))
+                            self.vis.video(video,win=self.display_id+5+id,opts=dict(title=label, fps=self.opt.fps/self.opt.skip_frames))
                     if len(plts)>0: 
-                        for pi, plt in enumerate(plts): 
+
+                        for pi, (label,plt) in enumerate(plts):                         
+                            id = self.display_ids[label]
+                            if id is None: 
+                                id = len(self.display_ids)
+                                self.display_ids[label] = id
+
                             self.vis.line(
                                 X=plt["X"],
                                 Y=plt["Y"],
                                 opts=plt["opts"],
-                                win=self.display_id + 3 + len(videos) + pi)
+                                win=self.display_id + 5 + id)
                                                         
-                    label_html = '<table>%s</table>' % label_html
-                    self.vis.text(table_css + label_html, win=self.display_id + 2,
-                                  opts=dict(title=title + ' labels'))
+                    # label_html = '<table>%s</table>' % label_html
+                    # self.vis.text(table_css + label_html, win=self.display_id + 2,
+                    #               opts=dict(title=title + ' labels'))
                 except VisdomExceptionBase:
                     self.throw_visdom_connection_error()
 
@@ -257,6 +272,36 @@ class Visualizer():
                 win=self.display_id)
         except VisdomExceptionBase:
             self.throw_visdom_connection_error()
+
+
+    # losses: dictionary of error labels and values
+    def plot_validation_losses(self, epoch, opt, losses):
+        if not hasattr(self, 'plot_val_data'):
+            self.plot_val_data = {'X': [], 'Y': [], 'legend': list(losses.keys())}
+        self.plot_val_data['X'].append(epoch)
+
+        self.plot_val_data['Y'].append([losses[k] for k in self.plot_val_data['legend']])
+
+        if len(self.plot_val_data['legend']) > 1:
+            X=np.stack([np.array(self.plot_val_data['X'])] * len(self.plot_val_data['legend']), 1)
+            Y=np.array(self.plot_val_data['Y'])
+        else: 
+            X=np.array([self.plot_val_data['X']]).flatten()
+            Y=np.array([self.plot_val_data['Y']]).flatten()
+
+        try:
+            self.vis.line(
+                X=X,
+                Y=Y,
+                opts={
+                    'title': self.name + ' loss over time',
+                    'legend': self.plot_val_data['legend'],
+                    'xlabel': 'epoch',
+                    'ylabel': 'loss'},
+                win=self.display_id)
+        except VisdomExceptionBase:
+            self.throw_visdom_connection_error()
+
 
     # losses: same format as |losses| of plot_current_losses
     def print_current_losses(self, epoch, i, losses, t, t_data):

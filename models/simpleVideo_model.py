@@ -407,6 +407,8 @@ class SimpleVideoModel(BaseModel):
         #self.loss_L1 = self.criterionL1(self.predicted_video[:,:T,...], self.target_video[:,:T,...])
         self.loss_L1.backward()
         self.optimizer.step()
+
+
         # if self.trainRenderer:
         #     # update Discriminator
         #     self.set_requires_grad(self.netD, True)
@@ -424,7 +426,7 @@ class SimpleVideoModel(BaseModel):
         #     self.optimizer_G.step()
 
 
-    def validate(self, secs = 2, fps = 30): 
+    def compute_losses(self, secs = 2, fps = 30): 
         T = secs * fps *1.0
         with torch.no_grad():
             self.netG.eval()
@@ -437,7 +439,7 @@ class SimpleVideoModel(BaseModel):
             # print(torch.min(self.predicted_video), torch.max(self.predicted_video))
             # print(torch.min(self.target_video), torch.max(self.target_video))
 
-            T = min(T,TT,Te) # just making sure to cut target if we didnt predict all the frames and to cut prediction, if we predicted more than target (i.e. we already messed up somewhere)
+            T = min(T,TT) # just making sure to cut target if we didnt predict all the frames and to cut prediction, if we predicted more than target (i.e. we already messed up somewhere)
             ## loss = L1(prediction - target) 
             #print(torch.min(self.target_video), torch.max(self.target_video))
             loss_L1 = torch.zeros([1], device = self.device)
@@ -446,8 +448,8 @@ class SimpleVideoModel(BaseModel):
                 l_i = self.criterionL1(self.predicted_video[:,i,...], self.target_video[:,i,...])
                 loss_L1 += l_i
                 lpf.append(l_i.item())
-            loss_L1 = sum(lpf)
-        lossperframe_plt["Y"] = lpf
-        lossperframe_plt["X"] =list(range(1, len(lpf)+1))
+            self.loss_L1 = sum(lpf)
+        self.lossperframe_plt["Y"] = lpf
+        self.lossperframe_plt["X"] =list(range(1, len(lpf)+1))
 
         return loss_L1, lpf

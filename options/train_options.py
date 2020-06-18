@@ -33,8 +33,8 @@ class TrainOptions(BaseOptions):
 
         parser.add_argument('--weight_decay', type=float, default=0, help='L2 decay')
 
-        parser.add_argument('--validation_freq', type=int, default=1, help='validate after every x epochs')
-        parser.add_argument('--validation_set', type=str, default="test", help='name of the validation set (default: test, bc. i didnt defina a validation set for most datasets)')
+        parser.add_argument('--validation_freq', type=int, default=1000, help='validate after every x epochs')
+        parser.add_argument('--validation_set', type=str, default="test", help='name of the validation set (default: test, bc. i didnt define a validation set for most datasets)')
 
 
         self.isTrain = True
