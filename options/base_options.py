@@ -62,7 +62,7 @@ class BaseOptions():
         parser.add_argument('--max_clip_length', type=float, default=2.0, help='max length of video clip in seconds')
         parser.add_argument('--max_per_frame_losses', type=int, default=10, help='display last n per frame losses')
 
-        parser.add_argument('--train_from_video', action='store_true', help='train nn to only predict next frame given current frame (default: predict entire vid from single frame')
+        parser.add_argument('--train_mode', type=str, default="frame", help='train nn to only predict next frame given current frame (default: predict entire vid from single frame')
 
         self.initialized = True
         return parser

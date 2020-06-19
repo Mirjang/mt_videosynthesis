@@ -14,9 +14,6 @@ class DummyDataset(BaseDataset):
         self.cifar10 = torchvision.datasets.CIFAR10(opt.dataroot, train = train, download=True, transform = torchvision.transforms.ToTensor())
         
         self.len = int(min(opt.max_dataset_size, len(self.cifar10)))
-        if not train:
-            self.len = 100
-
 
         ls = torch.linspace(0,1,steps=self.len)
         self.colors = torch.stack([ls,ls,ls])

@@ -14,10 +14,10 @@ if __name__ == '__main__':
 
 
     #opt.max_dataset_size = 1
-    opt.batchsize = 32
-    opt.print_freq = 250
-    opt.display_freq = 100
-    opt.update_html_freq = 100
+    opt.batch_size = 32
+    opt.print_freq = 1000
+    opt.display_freq = 2000
+    opt.update_html_freq = 2000
     opt.validation_freq = 1
     abort_file = "/mnt/raid/patrickradner/kill" + str(opt.gpu_ids[0]) if len(opt.gpu_ids)>0 else "cpu"
 
@@ -77,14 +77,13 @@ if __name__ == '__main__':
             visualizer.reset()
             val_losses = {"val_" + k : v for k, v in val_losses.items() }
             t = (time.time() - iter_start_time) / opt.batch_size
-            print("validation:" + str(val_losses))
+            #print("validation:" + str(val_losses))
             #visualizer.print_current_losses(epoch, epoch_iter, val_losses, t, t_data)
             if opt.display_id > 0:
                 visualizer.plot_validation_losses(epoch, opt, val_losses)
                 save_result = False
-                print(model.get_current_visuals().items())
-                visuals = {"val_" + k : v for k,v in model.get_current_visuals()}
-                visualizer.display_current_results(visuals, epoch, save_result)
+               # print(model.get_current_visuals(prefix="val_").keys())
+                visualizer.display_current_results(model.get_current_visuals(prefix="val_"), epoch, save_result)
 
 
         # training loop

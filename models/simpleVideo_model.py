@@ -5,7 +5,7 @@ from .base_model import BaseModel
 from . import networks
 import numpy as np
 import functools
-
+import random
 from .networks import VGG16, UnetSkipConnectionBlock, ConvLSTMCell, ConvGRUCell
 
 ################
@@ -242,8 +242,17 @@ class SimpleVideoModel(BaseModel):
         # specify the training losses you want to print out. The program will call base_model.get_current_losses
         self.loss_names = ['L1']
 
+        self.train_range = (1,self.nframes)
+        if self.opt.train_mode is "frame":
+            self.train_range = (1,1)
+        elif self.opt.train_mode is "video":
+            self.train_range = (self.nframes,self.nframes)
+        elif self.opt.train_mode is "mixed":
+            self.train_range = (1,self.nframes)
+
         # specify the images you want to save/display. The program will call base_model.get_current_visuals
         self.visual_names = ["prediction_target_video", "lossperframe_plt"]
+
         self.lossperframe_plt = {"opts": {
                     'title': "Loss per frame",
                     #'legend': ["L1 loss per frame"],
@@ -264,7 +273,7 @@ class SimpleVideoModel(BaseModel):
 
         # load/define networks
 
-        netG = GRUEncoderDecoderNet(self.nframes,opt.input_nc, hidden_dims=64)
+        netG = GRUEncoderDecoderNet(self.nframes,opt.input_nc, hidden_dims=128)
         self.netG = networks.init_net(netG, opt.init_type, opt.init_gain, self.gpu_ids)
 
         if self.isTrain:
@@ -290,8 +299,8 @@ class SimpleVideoModel(BaseModel):
     def forward(self, frame_length = -1, train = True):
         if hasattr(self.netG, "nFrames"):
             self.netG.nFrames = frame_length if frame_length>0 else self.nframes
-        if train and self.opt.train_from_video: 
-            video = self.netG(self.target_video)
+        if train:
+            video = self.netG(self.target_video[:,:random.randrange(*self.train_range),...])
         else:
             video = self.netG(self.input)
         self.predicted_video = video
@@ -389,7 +398,7 @@ class SimpleVideoModel(BaseModel):
 
         # print(torch.min(self.predicted_video), torch.max(self.predicted_video))
         # print(torch.min(self.target_video), torch.max(self.target_video))
-
+   
         T = min(T,TT,Te) # just making sure to cut target if we didnt predict all the frames and to cut prediction, if we predicted more than target (i.e. we already messed up somewhere)
         ## loss = L1(prediction - target) 
         #print(torch.min(self.target_video), torch.max(self.target_video))
