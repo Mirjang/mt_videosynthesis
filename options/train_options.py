@@ -29,12 +29,18 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--no_html', action='store_true', help='do not save intermediate training results to [opt.checkpoints_dir]/[opt.name]/web/')
         parser.add_argument('--lr_policy', type=str, default='lambda', help='learning rate policy: lambda|step|plateau|cosine')
         parser.add_argument('--lr_decay_iters', type=int, default=50, help='multiply by a gamma every lr_decay_iters iterations')
-        parser.add_argument('--tld', type=float, default=0.5, help='only update D, if loss > tld -> keeps d from overpowering G')
+        parser.add_argument('--tld', type=float, default=0.5, help='only update D, if loss > tld -> keeps D from overpowering G')
+        parser.add_argument('--tlg', type=float, default=0.5, help='only update G, if loss > tlg -> keeps G from overpowering D')
 
         parser.add_argument('--weight_decay', type=float, default=0, help='L2 decay')
 
         parser.add_argument('--validation_freq', type=int, default=1000, help='validate after every x epochs')
         parser.add_argument('--validation_set', type=str, default="test", help='name of the validation set (default: test, bc. i didnt define a validation set for most datasets)')
+
+
+        parser.add_argument('--dvd_spatial_frames', type=int, default=8, help='nr. of frames sampled by the per frame discriminator')
+        parser.add_argument('--dvd_temporal_ds', type=int, default=2, help='down sample factor for temportal discriminator')
+
 
 
         self.isTrain = True

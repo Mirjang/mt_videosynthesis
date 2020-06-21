@@ -35,8 +35,8 @@ def download_video(video, path, retries = 5, min_res="240p", max_res="720p"):
         stream.download(path, filename = filename)
         return [video['video_id'], filename + "." + stream.mime_type.split("/")[1], stream.resolution, stream.fps, 0.0, dl.length]
 
-       except Exception as e:
-           print(f"Exception {e} while downloading: {url} ...retrying {i+1}/{retries}")
+       except Exception as ಠ_ಠ:
+           print(f"Exception {ಠ_ಠ} while downloading: {url} ...retrying {i+1}/{retries}")
         
     return None
 
@@ -52,7 +52,7 @@ def move_files(source, dest, override = True):
                 continue
         shutil.move(os.path.join(source,f), dest)        
 
-def download_by_keyword(keyword, max_results= 1e3,dir_name = None, path ="./tmp", retries = 5, max_workers = 8, override_existing = False,min_res="240p", max_res="720p"): 
+def download_by_keyword(keyword, max_results= 5,dir_name = None, path ="./tmp", retries = 5, max_workers = 8, override_existing = False,min_res="240p", max_res="720p"): 
     san_key = keyword.strip().replace(" ", "_") if not dir_name else dir_name
     path = os.path.join(path, san_key)
     

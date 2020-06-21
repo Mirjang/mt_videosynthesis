@@ -41,15 +41,16 @@ if __name__ == '__main__':
     #         cv2.waitKey(int(1.0/float(30)*1000))
     #     break
 
-    phase = opt.phase
-    opt.phase = opt.validation_set
-    validation_loader = CreateDataLoader(opt)
-    validation_set = validation_loader.load_data()
-    opt.phase = phase
+    if opt.validation_freq>0:
+        phase = opt.phase
+        opt.phase = opt.validation_set
+        validation_loader = CreateDataLoader(opt)
+        validation_set = validation_loader.load_data()
+        opt.phase = phase
 
-    validation_size = len(validation_loader)
-    print('#training samples = %d' % dataset_size)
-    print('#validation samples = %d' % validation_size)
+        validation_size = len(validation_loader)
+        print('#training samples = %d' % dataset_size)
+        print('#validation samples = %d' % validation_size)
 
     model = create_model(opt)
     model.setup(opt)

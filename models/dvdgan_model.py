@@ -7,6 +7,7 @@ import numpy as np
 import functools
 import random
 from .networks import VGG16, UnetSkipConnectionBlock, ConvLSTMCell, ConvGRUCell
+from .networks import NLayerDiscriminator
 
 ################
 ###  HELPER  ###
@@ -26,123 +27,29 @@ def gram_matrix(y):
     gram = features.bmm(features_t) / (ch * h * w)
     return gram
 
-class ConvLiftNet(nn.Module): 
-    def __init__(self, nframes, image_nc=3):
-        super(ConvLiftNet, self).__init__()
-        self.nframes = nframes
-        self.image_nc = image_nc
-        #model = [nn.Conv2d(image_nc, image_nc*nframes, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="reflect")]
-        model = [nn.Conv3d(1, nframes, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="reflect")]
-        model += [nn.LeakyReLU(0.2)]
-        model += [nn.Conv3d(nframes, nframes, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="reflect")]
-        model += [nn.LeakyReLU(0.2)]
-        model += [nn.Conv3d(nframes, nframes, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="reflect")]
 
-        model += [nn.Tanh()]
-        self.model = nn.Sequential(*model)
-
-    def forward(self, x): 
-        x = x * 2 - 1 #[0,1] -> [-1,1]
-        N,C,H,W = x.shape 
-        x = torch.unsqueeze(x, 1)#->(N,C,H,W)->(N,T=1,C,H,W)
-        x = self.model(x)
-        #x = torch.reshape(x, (N,self.nframes,C,H,W))
-        x = (x+1) / 2.0 #[-1,1] -> [0,1] for vis 
-        return x
-
-
-class FwdConvNet(nn.Module):
-    def __init__(self, nframes, image_nc=3):
-        super(FwdConvNet, self).__init__()
-        self.nframes = nframes
-        self.image_nc = image_nc
-        #model = [nn.Conv2d(image_nc, image_nc*nframes, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="mirror")]
-        self.model = ConvLSTMCell()
-        model = [nn.Conv2d(image_nc, 8, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="mirror")]
-        model += [nn.LeakyReLU(0.2)]
-        model += [nn.Conv2d(8, image_nc, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="mirror")]
-        model += [nn.Tanh()]
-        self.model = nn.Sequential(*model)
-        
-    def forward(self, x): 
-        x = x * 2 - 1 #[0,1] -> [-1,1]
-        N,C,H,W = x.shape 
-        out = torch.zeros((N,self.nframes,C,H,W), device = x.device)
-        out[:,0] = x
-        for i in range(1,self.nframes):
-
-            x = self.model(x)
-            out[:,i] = x
-        #x = torch.reshape(x, (N,self.nframes,C,H,W))
-        out = (out+1) / 2.0 #[-1,1] -> [0,1] for vis 
-        return out
-
-class LSTMGeneratorNet(nn.Module): 
-    def __init__(self, nframes, image_nc=3, hidden_dims = 1):
-        super(LSTMGeneratorNet, self).__init__()
-        self.nframes = nframes
-        self.image_nc = image_nc
-        self.hidden_dims = hidden_dims
-
-        self.lstm = ConvLSTMCell((640,360),image_nc, hidden_dims, (3,3), True)
-        decoder = [nn.Conv2d(hidden_dims, image_nc, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="mirror")]
-        decoder += [nn.Tanh()]
-        self.decoder = nn.Sequential(*decoder)
-
-    def forward(self, x): 
-        x = x * 2 - 1 #[0,1] -> [-1,1]
-        N,C,H,W = x.shape 
-        out = torch.zeros((N,self.nframes,C,H,W), device = x.device)
-        out[:,0] = x
-
-        h = torch.zeros((N,self.hidden_dims,H,W)).to(x.device)
-        c = torch.zeros((N,self.hidden_dims,H,W)).to(x.device)
-
-        for i in range(1,self.nframes):
-            h, c = self.lstm(x, (h,c))
-            out[:,i] = self.decoder(h)
-        #x = torch.reshape(x, (N,self.nframes,C,H,W))
-        out = (out+1) / 2.0 #[-1,1] -> [0,1] for vis 
-        return out
-
-class LSTMEncoderDecoderNet(nn.Module): 
-    def __init__(self, nframes, image_nc=3, hidden_dims = 16):
-        super(LSTMEncoderDecoderNet, self).__init__()
+class VideoDiscriminatorNet(nn.Module): 
+    def __init__(self, nframes, image_nc=3, hidden_dims = 16, downsample = 2):
         self.nframes = nframes
         self.image_nc = image_nc
         self.hidden_dims = hidden_dims  
 
-        encoder = []
-
         def conv_relu(in_dims, out_dims, stride = 1): 
             layer = [nn.Conv2d(in_dims, out_dims, kernel_size=3, bias=True, padding=1, stride=stride, padding_mode="reflect")]
             layer += [nn.LeakyReLU(0.2)]
-            return layer
+            return layer  
 
-        encoder += conv_relu(image_nc,16, stride = 2)
-        encoder += conv_relu(16,32, stride = 2)
-        encoder += conv_relu(32,64, stride = 1)
-        encoder += conv_relu(64,hidden_dims)
+
+        encoder = []
+
+        encoder += nn.AveragePool3d()
 
 
         self.encoder = nn.Sequential(*encoder)
 
-        enc2hidden = conv_relu(hidden_dims,hidden_dims)
-        enc2cell = conv_relu(hidden_dims,hidden_dims)
-        
-        self.enc2hidden = nn.Sequential(*enc2hidden)
-        self.enc2cell = nn.Sequential(*enc2cell)
+    def forward(self, x): 
+        return self.encoder(x)
 
-        self.lstm = ConvLSTMCell(hidden_dims, hidden_dims, (3,3), True)
-        decoder = []
-        decoder += [nn.Upsample(scale_factor=2)]
-        decoder += conv_relu(hidden_dims,32)
-        decoder += conv_relu(32,16)
-
-        decoder += [nn.Upsample(scale_factor=2)]
-        decoder += [nn.Conv2d(16, image_nc, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="reflect")]
-        decoder += [nn.Tanh()]
-        self.decoder = nn.Sequential(*decoder)
 
 class GRUEncoderDecoderNet(nn.Module): 
     def __init__(self, nframes, image_nc=3, hidden_dims = 16):
@@ -214,9 +121,9 @@ class GRUEncoderDecoderNet(nn.Module):
 
 
 
-class SimpleVideoModel(BaseModel):
+class DvdGanModel(BaseModel):
     def name(self):
-        return 'SimpleVideoModel'
+        return 'DvdGanModel'
 
     @staticmethod
     def modify_commandline_options(parser, is_train=True):
@@ -267,7 +174,7 @@ class SimpleVideoModel(BaseModel):
 
         # specify the models you want to save to the disk. The program will call base_model.save_networks and base_model.load_networks
         if self.isTrain:
-            self.model_names = ['netG']
+            self.model_names = ['netG', 'netDs', 'netDt']
         else:  # during test time, only load Gs
             self.model_names = ['netG']
 
@@ -277,6 +184,9 @@ class SimpleVideoModel(BaseModel):
         self.netG = networks.init_net(netG, opt.init_type, opt.init_gain, self.gpu_ids)
 
         if self.isTrain:
+
+            self.netDs = NLayerDiscriminator(3, ndf = 32, n_layers = 3, use_sigmoid=True)
+
             # define loss functions
             self.criterionL1 = torch.nn.L1Loss()
             self.criterionL1Smooth = torch.nn.SmoothL1Loss()
@@ -386,12 +296,15 @@ class SimpleVideoModel(BaseModel):
         Te = self.epoch_frame_length(epoch_iter)
         self.forward(frame_length=Te)
 
+        if epoch_iter == 50: #restart adam to clear momemtum from poor init
+            self.optimizers = []
+            #self.optimizer = torch.optim.SGD(self.netG.parameters(), opt.lr)
+            #self.optimizer = torch.optim.Adam(self.netG.parameters(), lr=self.opt.lr, betas=(self.opt.beta1, 0.999))
+            self.optimizers.append(self.optimizer)
+
         self.optimizer.zero_grad()
         _, T,*_ = self.predicted_video.shape
         _, TT,*_ = self.target_video.shape
-
-        # print(torch.min(self.predicted_video), torch.max(self.predicted_video))
-        # print(torch.min(self.target_video), torch.max(self.target_video))
    
         T = min(T,TT,Te) # just making sure to cut target if we didnt predict all the frames and to cut prediction, if we predicted more than target (i.e. we already messed up somewhere)
         ## loss = L1(prediction - target) 
