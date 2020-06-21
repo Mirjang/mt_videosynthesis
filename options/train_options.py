@@ -39,7 +39,7 @@ class TrainOptions(BaseOptions):
 
 
         parser.add_argument('--dvd_spatial_frames', type=int, default=8, help='nr. of frames sampled by the per frame discriminator')
-        parser.add_argument('--dvd_temporal_ds', type=int, default=2, help='down sample factor for temportal discriminator')
+        parser.add_argument('--dvd_temporal_downsample', type=int, default=2, help='down sample factor for temportal discriminator')
 
 
 
