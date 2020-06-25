@@ -7,6 +7,8 @@ from util.visualizer import Visualizer
 import torch
 import numpy as np
 from PIL import Image
+from sanity_check import sanity_check
+import copy
 
 if __name__ == '__main__':
     opt = TrainOptions().parse()
@@ -16,7 +18,11 @@ if __name__ == '__main__':
         os.remove(abort_file)
         exit("Abort using file: " + abort_file)
 
-    data_loader = CreateDataLoader(opt)
+
+    if opt.sanity_check: 
+        sanity_check(opt)
+
+    data_loader = CreateDataLoader(copy.deepcopy(opt))
     dataset = data_loader.load_data()
     dataset_size = len(data_loader)
 
@@ -29,7 +35,6 @@ if __name__ == '__main__':
         validation_loader = CreateDataLoader(opt)
         validation_set = validation_loader.load_data()
         opt.phase = phase
-
         validation_size = len(validation_loader)
 
     print('#training samples = %d' % dataset_size)
@@ -40,26 +45,32 @@ if __name__ == '__main__':
 
     visualizer = Visualizer(opt)
     total_steps = 0
-
     for epoch in range(opt.epoch_count, opt.niter + opt.niter_decay + 1):
-
+        verbose = True
 
         #validation
-        if epoch % opt.validation_freq == 0 and opt.validation_freq>0:
+        if opt.validation_freq>0 and epoch % opt.validation_freq == 1: # do val first so we dont get nasty crashes after hours of training
             iter_start_time = time.time()
             val_losses = {}
+            visuals = {}
             for i, data in enumerate(validation_set):
                 model.set_input(data) 
                 torch.cuda.synchronize()                
                 model.test()
-                model.compute_losses()
-                current_losses = model.get_current_losses()
+                current_losses, visuals = model.compute_losses()
+                #current_losses = model.get_current_losses()
                 # avg. validation loss
                 val_losses = {key: val_losses.get(key, 0) + current_losses.get(key, 0) / validation_size
                     for key in set(val_losses) | set(current_losses)}
 
+            message = 'VALIDATION (epoch: %d): ' % (epoch)
+            for k, v in val_losses.items():
+                message += '%s: %.6f ' % (k, v)
+
+            #print(visuals)
+            print(message)
             visualizer.reset()
-            val_losses = {"val_" + k : v for k, v in val_losses.items() }
+            #val_losses = {"val_" + k : v for k, v in val_losses.items() }
             t = (time.time() - iter_start_time) / opt.batch_size
             #print("validation:" + str(val_losses))
             #visualizer.print_current_losses(epoch, epoch_iter, val_losses, t, t_data)
@@ -67,7 +78,7 @@ if __name__ == '__main__':
                 visualizer.plot_validation_losses(epoch, opt, val_losses)
                 save_result = False
                # print(model.get_current_visuals(prefix="val_").keys())
-                visualizer.display_current_results(model.get_current_visuals(prefix="val_"), epoch, save_result)
+                visualizer.display_current_results(visuals, epoch, save_result)
 
 
         # training loop
@@ -89,13 +100,14 @@ if __name__ == '__main__':
             epoch_iter += opt.batch_size
             
             model.set_input(data)
-            model.optimize_parameters(epoch)
-
+            model.optimize_parameters(epoch, verbose = verbose)
+            verbose = False or opt.verbose
+            
             if total_steps % opt.display_freq == 0:
                 save_result = total_steps % opt.update_html_freq == 0
                 visualizer.display_current_results(model.get_current_visuals(), epoch, save_result)
 
-            if total_steps % opt.print_freq == 0:
+            if total_steps % (opt.print_freq * opt.batch_size) == 0:
                 print(opt.name)
                 losses = model.get_current_losses()
                 t = (time.time() - iter_start_time) / opt.batch_size
@@ -103,10 +115,10 @@ if __name__ == '__main__':
                 if opt.display_id > 0:
                     visualizer.plot_current_losses(epoch, float(epoch_iter) / dataset_size, opt, losses)
 
-            if total_steps % opt.save_latest_freq == 0:
-                print('saving the latest model (epoch %d, total_steps %d)' % (epoch, total_steps))
-                save_suffix = 'iter_%d' % total_steps if opt.save_by_iter else 'latest'
-                model.save_networks(save_suffix)
+            # if total_steps % opt.save_latest_freq == 0:
+            #     print('saving the latest model (epoch %d, total_steps %d)' % (epoch, total_steps))
+            #     save_suffix = 'iter_%d' % total_steps if opt.save_by_iter else 'latest'
+            #     model.save_networks(save_suffix)
 
             iter_data_time = time.time()
         if epoch % opt.save_epoch_freq == 0:

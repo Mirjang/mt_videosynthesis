@@ -24,14 +24,17 @@ def tensor2im(input_image, imtype=np.uint8):
 def diagnose_network(net, name='network'):
     mean = 0.0
     count = 0
+    norm = 0
     for param in net.parameters():
         if param.grad is not None:
             mean += torch.mean(torch.abs(param.grad.data))
+            norm += param.grad.data.norm(2).item() ** 2
             count += 1
     if count > 0:
         mean = mean / count
-    print(name)
-    print(mean)
+        norm = norm / count
+    norm = norm ** .5
+    print("%s: mean: %.4f\tnorm: %.4f"%(name,mean,norm))
 
 
 def save_image(image_numpy, image_path):

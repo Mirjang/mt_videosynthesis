@@ -67,8 +67,7 @@ if __name__ == '__main__':
     warm_up = 50
 
     # test with eval mode. This only affects layers like batchnorm and dropout.
-    # pix2pix: we use batchnorm and dropout in the original pix2pix. You can experiment it with and without eval() mode.
-    # CycleGAN: It should not affect CycleGAN as CycleGAN uses instancenorm without dropout.
+
     if opt.eval:
         model.eval()
     for i, data in enumerate(dataset):

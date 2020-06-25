@@ -64,6 +64,10 @@ class BaseOptions():
 
         parser.add_argument('--train_mode', type=str, default="frame", help='train nn to only predict next frame given current frame (default: predict entire vid from single frame')
 
+        parser.add_argument('--sanity_check', action='store_true', help='perform sanity check before running model')
+
+
+
         self.initialized = True
         return parser
 

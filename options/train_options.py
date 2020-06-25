@@ -14,7 +14,7 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--update_html_freq', type=int, default=1000, help='frequency of saving training results to html')
         parser.add_argument('--print_freq', type=int, default=100, help='frequency of showing training results on console')
         parser.add_argument('--save_latest_freq', type=int, default=5000, help='frequency of saving the latest results')
-        parser.add_argument('--save_epoch_freq', type=int, default=20, help='frequency of saving checkpoints at the end of epochs')
+        parser.add_argument('--save_epoch_freq', type=int, default=5, help='frequency of saving checkpoints at the end of epochs')
         parser.add_argument('--save_by_iter', action='store_true', help='whether saves model by iteration')
         
         parser.add_argument('--continue_train', action='store_true', help='continue training: load the latest model')
@@ -33,6 +33,7 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--tlg', type=float, default=0.5, help='only update G, if loss > tlg -> keeps G from overpowering D')
 
         parser.add_argument('--weight_decay', type=float, default=0, help='L2 decay')
+        parser.add_argument('--clip_grads', type=float, default=1, help='clip gradients')
 
         parser.add_argument('--validation_freq', type=int, default=1000, help='validate after every x epochs')
         parser.add_argument('--validation_set', type=str, default="test", help='name of the validation set (default: test, bc. i didnt define a validation set for most datasets)')
@@ -40,7 +41,8 @@ class TrainOptions(BaseOptions):
 
         parser.add_argument('--dvd_spatial_frames', type=int, default=8, help='nr. of frames sampled by the per frame discriminator')
         parser.add_argument('--dvd_temporal_downsample', type=int, default=2, help='down sample factor for temportal discriminator')
-
+        parser.add_argument('--pretrain_epochs', type=int, default=0, help='train discriminator for n epochs before training generator')
+        parser.add_argument('--max_val_dataset_size', type=int, default=2000, help='cap validation set size')
 
 
         self.isTrain = True

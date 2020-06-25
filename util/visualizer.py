@@ -110,7 +110,8 @@ class Visualizer():
             ncols = self.ncols
             if ncols > 0:
                 ncols = min(ncols, len(visuals))
-                h, w = next(iter(visuals.values())).shape[2:4] #if first visual is a video these values will be garbage
+                #h, w = next(iter(visuals.values())).shape[2:4] #if first visual is a video these values will be garbage
+                h,w = width, width
                 for label, image in visuals.items(): 
                     if not (label.endswith("_video") or label.endswith("_plt")):
                         h, w = image.shape[2:4]
@@ -308,7 +309,7 @@ class Visualizer():
 
     # losses: same format as |losses| of plot_current_losses
     def print_current_losses(self, epoch, i, losses, t, t_data):
-        message = '(epoch: %d, iters: %d, time: %.3f, data: %.3f) ' % (epoch, i, t, t_data)
+        message = '(epoch: %d, iters: %d, time: %.3f, data: %.3f)\t' % (epoch, i, t, t_data)
         for k, v in losses.items():
             message += '%s: %.6f ' % (k, v)
 

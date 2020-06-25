@@ -11,19 +11,32 @@ import cv2
 
 if __name__ == '__main__':
     opt = TrainOptions().parse()
+    sanity_check(opt)
 
-
-    #opt.max_dataset_size = 1
-    opt.batch_size = 32
-    opt.print_freq = 1000
-    opt.display_freq = 2000
-    opt.update_html_freq = 2000
-    opt.validation_freq = 1
+def sanity_check(opt):
     abort_file = "/mnt/raid/patrickradner/kill" + str(opt.gpu_ids[0]) if len(opt.gpu_ids)>0 else "cpu"
 
     if os.path.exists(abort_file): 
         os.remove(abort_file)
         exit("Abort using file: " + abort_file)
+
+
+    #opt.max_dataset_size = 1
+    freq = 20
+    opt.batch_size = 1
+    opt.print_freq = freq
+    opt.display_freq = freq
+    opt.update_html_freq = freq
+    opt.validation_freq = 50
+    opt.niter = 500
+    opt.niter_decay = 0 
+    opt.display_env = "sanity_check"
+    opt.num_display_frames = int(opt.max_clip_length*opt.fps)-2
+    opt.train_mode ="frame"
+    #opt.lr = 0.004
+    opt.pretrain_epochs = 0
+
+    opt.verbose = True
 
     data_loader = CreateDataLoader(opt)
     dataset = data_loader.load_data()
@@ -58,81 +71,47 @@ if __name__ == '__main__':
     visualizer = Visualizer(opt)
     total_steps = 0
 
+    data = next(iter(dataset))
+
+
     for epoch in range(opt.epoch_count, opt.niter + opt.niter_decay + 1):
-
-
-        #validation
-        if epoch % opt.validation_freq == 0 and opt.validation_freq>0:
-            iter_start_time = time.time()
-            val_losses = {}
-            for i, data in enumerate(validation_set):
-                model.set_input(data) 
-                torch.cuda.synchronize()                
-                model.test()
-                model.compute_losses()
-                current_losses = model.get_current_losses()
-                # avg. validation loss
-                val_losses = {key: val_losses.get(key, 0) + current_losses.get(key, 0) / validation_size
-                    for key in set(val_losses) | set(current_losses)}
-
-            visualizer.reset()
-            val_losses = {"val_" + k : v for k, v in val_losses.items() }
-            t = (time.time() - iter_start_time) / opt.batch_size
-            #print("validation:" + str(val_losses))
-            #visualizer.print_current_losses(epoch, epoch_iter, val_losses, t, t_data)
-            if opt.display_id > 0:
-                visualizer.plot_validation_losses(epoch, opt, val_losses)
-                save_result = False
-               # print(model.get_current_visuals(prefix="val_").keys())
-                visualizer.display_current_results(model.get_current_visuals(prefix="val_"), epoch, save_result)
-
-
         # training loop
 
         epoch_start_time = time.time()
         iter_data_time = time.time()
         epoch_iter = 0
         losses={}
-        for i, data in enumerate(dataset):
-            if os.path.exists(abort_file): 
-                exit("Abort using file: " + abort_file)
-
-
-            iter_start_time = time.time()
-            if total_steps % opt.print_freq == 0:
-                t_data = iter_start_time - iter_data_time
-            visualizer.reset()
-            total_steps += opt.batch_size
-            epoch_iter += opt.batch_size
             
-            model.set_input(data)
-            model.optimize_parameters(epoch)
 
-            if total_steps % opt.display_freq == 0:
-                save_result = total_steps % opt.update_html_freq == 0
-                visualizer.display_current_results(model.get_current_visuals(), epoch, save_result)
-
-            if total_steps % opt.print_freq == 0:
-                print(opt.name)
-                losses = model.get_current_losses()
-                t = (time.time() - iter_start_time) / opt.batch_size
-                visualizer.print_current_losses(epoch, epoch_iter, losses, t, t_data)
-                if opt.display_id > 0:
-                    visualizer.plot_current_losses(epoch, float(epoch_iter) / dataset_size, opt, losses)
-
-            if total_steps % opt.save_latest_freq == 0:
-                print('saving the latest model (epoch %d, total_steps %d)' % (epoch, total_steps))
-                save_suffix = 'iter_%d' % total_steps if opt.save_by_iter else 'latest'
-                model.save_networks(save_suffix)
-
-            iter_data_time = time.time()
-        if epoch % opt.save_epoch_freq == 0:
-            print('saving the model at the end of epoch %d, iters %d' % (epoch, total_steps))
-            model.save_networks('latest')
-            model.save_networks(epoch)
+        if os.path.exists(abort_file): 
+            exit("Abort using file: " + abort_file)
 
 
+        iter_start_time = time.time()
+        if total_steps % opt.print_freq == 0:
+            t_data = iter_start_time - iter_data_time
+        visualizer.reset()
+        total_steps += opt.batch_size
+        epoch_iter += opt.batch_size
+        
+        model.set_input(data)
+        model.optimize_parameters(epoch, verbose = opt.verbose)
 
-        print('End of epoch %d / %d \t Time Taken: %d sec' %
-              (epoch, opt.niter + opt.niter_decay, time.time() - epoch_start_time))
-        model.update_learning_rate()
+        if total_steps % opt.display_freq == 0:
+            save_result = total_steps % opt.update_html_freq == 0
+            visualizer.display_current_results(model.get_current_visuals(), epoch, save_result)
+
+        if total_steps % opt.print_freq == 0:
+            print(opt.name)
+            losses = model.get_current_losses()
+            t = (time.time() - iter_start_time) / opt.batch_size
+            visualizer.print_current_losses(epoch, epoch_iter, losses, t, t_data)
+            if opt.display_id > 0:
+                visualizer.plot_current_losses(epoch, float(epoch_iter) / dataset_size, opt, losses)
+
+        iter_data_time = time.time()
+
+
+        if epoch % 50 == 0:
+            print('End of sanity_check epoch %d / %d \t Time Taken: %d sec' %
+                (epoch, opt.niter + opt.niter_decay, time.time() - epoch_start_time))

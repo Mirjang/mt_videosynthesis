@@ -13,7 +13,11 @@ class DummyDataset(BaseDataset):
         self.nframes = int(opt.max_clip_length * opt.fps)
         self.cifar10 = torchvision.datasets.CIFAR10(opt.dataroot, train = train, download=True, transform = torchvision.transforms.ToTensor())
         
-        self.len = int(min(opt.max_dataset_size, len(self.cifar10)))
+
+        if train: 
+            self.len = int(min(opt.max_dataset_size, len(self.cifar10)))
+        else: 
+            self.len = int(min(opt.max_val_dataset_size, len(self.cifar10)))
 
         ls = torch.linspace(0,1,steps=self.len)
         self.colors = torch.stack([ls,ls,ls])
