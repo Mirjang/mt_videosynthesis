@@ -33,6 +33,7 @@ def sanity_check(opt):
     opt.display_env = "sanity_check"
     opt.num_display_frames = int(opt.max_clip_length*opt.fps)-2
     opt.train_mode ="frame"
+    #opt.reparse_data=True
     #opt.lr = 0.004
     opt.pretrain_epochs = 0
 
@@ -41,18 +42,24 @@ def sanity_check(opt):
     data_loader = CreateDataLoader(opt)
     dataset = data_loader.load_data()
     dataset_size = len(data_loader)
-
+    t_min = 100000
+    t_max = 0
     #show some data using opencv, only works when display is available
-    # for _,data in enumerate(dataset): 
-    #     clip = data['VIDEO'][0] #first elem in batch
-    #     T,_,_,_ = clip.shape
-    #     print(T)
-    #     for i in range(min(T,150)):
-    #         frame = clip[i].numpy()#.transpose(1,2,0)
-    #         frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-    #         cv2.imshow("1", frame)
-    #         cv2.waitKey(int(1.0/float(30)*1000))
-    #     break
+    for _,data in enumerate(dataset): 
+        clip = data['VIDEO'][0] #first elem in batch
+       # print(clip.shape)
+        T,_,_,_ = clip.shape
+        #print(T)
+        # for i in range(min(T,150)):
+        #     frame = clip[i].numpy()#.transpose(1,2,0)
+        #     frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        #     cv2.imshow("1", frame)
+        #     cv2.waitKey(int(1.0/float(30)*1000))
+        t_min = min(t_min, T)
+        t_max = max(t_max, T)
+
+    print(f"Length: Min: {t_min} Max: {t_max}")
+
 
     if opt.validation_freq>0:
         phase = opt.phase

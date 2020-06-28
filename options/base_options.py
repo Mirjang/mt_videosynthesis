@@ -65,6 +65,8 @@ class BaseOptions():
         parser.add_argument('--train_mode', type=str, default="frame", help='train nn to only predict next frame given current frame (default: predict entire vid from single frame')
 
         parser.add_argument('--sanity_check', action='store_true', help='perform sanity check before running model')
+        parser.add_argument('--reparse_data', action='store_true', help='reparse data set when applicable (e.g for new clip length)')
+        parser.add_argument('--resolution', type=int, default=64, help='spatial resolution')
 
 
 
