@@ -7,14 +7,6 @@ import numpy as np
 import functools
 import random
 from .networks import VGG16, UnetSkipConnectionBlock, ConvLSTMCell, ConvGRUCell
-
-################
-###  HELPER  ###
-################
-
-INVALID_UV = -1.0
-
-
 from torchvision import models
 from collections import namedtuple
 

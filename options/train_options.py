@@ -35,14 +35,14 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--weight_decay', type=float, default=0, help='L2 decay')
         parser.add_argument('--clip_grads', type=float, default=1, help='clip gradients')
 
-        parser.add_argument('--validation_freq', type=int, default=1000, help='validate after every x epochs')
+        parser.add_argument('--validation_freq', type=int, default=10, help='validate after every x epochs')
         parser.add_argument('--validation_set', type=str, default="test", help='name of the validation set (default: test, bc. i didnt define a validation set for most datasets)')
 
 
         parser.add_argument('--dvd_spatial_frames', type=int, default=8, help='nr. of frames sampled by the per frame discriminator')
         parser.add_argument('--dvd_temporal_downsample', type=int, default=2, help='down sample factor for temportal discriminator')
         parser.add_argument('--pretrain_epochs', type=int, default=0, help='train discriminator for n epochs before training generator')
-        parser.add_argument('--max_val_dataset_size', type=int, default=2000, help='cap validation set size')
+        parser.add_argument('--max_val_dataset_size', type=int, default=1000, help='cap validation set size')
 
         self.isTrain = True
         return parser

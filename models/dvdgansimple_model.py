@@ -9,9 +9,91 @@ import functools
 import random
 from .networks import VGG16, UnetSkipConnectionBlock, ConvLSTMCell, ConvGRUCell
 from .networks import NLayerDiscriminator
-from collections import OrderedDict, namedtuple
+from collections import OrderedDict,namedtuple
 from torchvision import models
+from collections import namedtuple
 
+
+def gram_matrix(y):
+    (b, ch, h, w) = y.size()
+    features = y.view(b, ch, w * h)
+    features_t = features.transpose(1, 2)
+    gram = features.bmm(features_t) / (ch * h * w)
+    return gram
+
+
+class VideoDiscriminatorNet(nn.Module): 
+    def __init__(self, image_nc=3, ndf = 32):
+        super(VideoDiscriminatorNet, self).__init__()
+        self.image_nc = image_nc
+
+        def conv3d_relu_x2(in_dims, out_dims, stride = 1): 
+            layer=[]
+            layer += [nn.Conv3d(in_dims, in_dims*2, kernel_size=(3,3,3), stride=stride, padding=0, padding_mode="replicate")]
+            layer += [nn.LeakyReLU(0.2)]
+            layer += [nn.Conv3d(in_dims*2, out_dims, kernel_size=(3,3,3), stride=stride, padding=0, padding_mode="replicate")]
+            layer += [nn.LeakyReLU(0.2)]
+            return layer
+
+        encoder = []
+        encoder += [nn.AvgPool3d(kernel_size=(1,2,2), stride=(1,2,2))]
+        encoder += [nn.Conv3d(image_nc, ndf, kernel_size=1, stride=1, padding=0, padding_mode="replicate")]
+        encoder += [nn.LeakyReLU(0.2)]
+        encoder += conv3d_relu_x2(ndf, ndf*4, stride = (1,2,2))
+        encoder += [nn.Conv3d(ndf*4, 1, kernel_size=1, stride=1, padding=0, padding_mode="replicate")]
+        encoder += [nn.Sigmoid()]
+
+        self.encoder = nn.Sequential(*encoder)
+
+
+    def forward(self, x): 
+        x = x * 2 - 1 #[0,1] -> [-1,1]
+
+        x = x.permute(0,2,1,3,4) # flip time(1) and color channels (2)
+        x = self.encoder(x).squeeze()
+        # print(f"df: {x.shape}")
+        return x
+
+class SpatialDiscriminatorNet(nn.Module): 
+    def __init__(self, image_nc, ndf = 16, mlp_in_dims = 8):
+        super(SpatialDiscriminatorNet, self).__init__()
+
+        self.image_nc = image_nc
+        def conv_relu_x2(in_dims, out_dims, stride = 1): 
+            layer = [nn.Conv2d(in_dims, in_dims*2, kernel_size=3, bias=True, padding=0, stride=stride, padding_mode="reflect")]
+            layer += [nn.LeakyReLU(0.2)]
+            layer += [nn.Conv2d(in_dims*2, out_dims, kernel_size=3, bias=True, padding=0, stride=stride, padding_mode="reflect")]
+            layer += [nn.LeakyReLU(0.2)]
+            return layer  
+
+        encoder = []
+        encoder += [nn.Conv2d(image_nc, ndf, kernel_size=3, bias=True, stride = 1)]
+        encoder += [nn.LeakyReLU(0.2)]
+        encoder += conv_relu_x2(ndf, ndf*4)
+
+        encoder += conv_relu_x2(ndf*4, ndf*8, stride = 2)
+        encoder += [nn.Conv2d(ndf*8, 1, kernel_size=1, stride = 2, bias=True)]
+        encoder += [nn.Sigmoid()]
+      #  encoder += [nn.Upsample(size =(mlp_in_dims,mlp_in_dims))]
+
+        self.encoder = nn.Sequential(*encoder)
+        # self.mlp_shape = mlp_in_dims**2 * 1
+
+        # mlp = []
+        # mlp += [nn.Linear(self.mlp_shape, 1)]
+        # # mlp += [nn.ReLU()]
+        # # mlp += [nn.Linear(64,1)]
+        # mlp += [nn.Sigmoid()]
+        # self.mlp = nn.Sequential(*mlp)
+
+    def forward(self, x): 
+        x = x * 2 - 1 #[0,1] -> [-1,1]
+
+        x = self.encoder(x)
+        # x = x.view(-1, self.mlp_shape)
+        # x = self.mlp(x)
+        #print(f"ds: {x.shape}")
+        return x
 
 
 class GRUEncoderDecoderNet(nn.Module): 
@@ -91,10 +173,73 @@ class GRUEncoderDecoderNet(nn.Module):
 
 
 
+class GRUDeltaNet(nn.Module): 
+    def __init__(self, nframes, image_nc=3, hidden_dims = 16):
+        super(GRUDeltaNet, self).__init__()
+        self.nframes = nframes
+        self.image_nc = image_nc
+        self.hidden_dims = hidden_dims  
 
-class DvdGanModel(BaseModel):
+
+        def conv_relu(in_dims, out_dims, stride = 1): 
+            layer = [nn.Conv2d(in_dims, out_dims, kernel_size=3, bias=True, padding=1, stride=stride, padding_mode="reflect")]
+            layer += [nn.ReLU()]
+            return layer
+
+        encoder = []
+        encoder += conv_relu(image_nc,16, stride = 1)
+        encoder += conv_relu(16,32, stride = 1)
+        encoder += [nn.AvgPool2d(2,2)]
+        encoder += conv_relu(32,64, stride = 1)
+        encoder += conv_relu(64,hidden_dims)
+
+
+        self.encoder = nn.Sequential(*encoder)
+
+        enc2hidden = conv_relu(hidden_dims,hidden_dims)        
+        self.enc2hidden = nn.Sequential(*enc2hidden)
+
+        self.gru = ConvGRUCell(hidden_dims, hidden_dims, (3,3), True)
+        decoder = []
+        decoder += conv_relu(hidden_dims,32)
+        decoder += [nn.Upsample(scale_factor=2)]        
+        decoder += [nn.Conv2d(32, image_nc, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="reflect")]
+        decoder += [nn.Tanh()]
+        self.decoder = nn.Sequential(*decoder)
+
+
+
+    def forward(self, x): 
+        x = x * 2 - 1 #[0,1] -> [-1,1]
+        if len(x.shape) == 4: 
+            x = x.unsqueeze(1)
+
+        N,T,C,H,W = x.shape
+        out = torch.zeros((N,self.nframes,C,H,W), device = x.device)
+        out[:,0] = x[:,0,...]
+        h = None
+
+        for i in range(1,self.nframes):
+            
+            if i<=T: # frame was provided as input
+                x_i = x[:,i-1,...]
+
+            e_i = self.encoder(x_i)
+
+            if h is None: 
+                h = torch.zeros_like(e_i, device = x.device)
+
+            #h = self.gru(e_i, h)
+            x_i = self.decoder(e_i)
+            out[:,i] = x_i
+        #x = torch.reshape(x, (N,self.nframes,C,H,W))
+        out = (out+1) / 2.0 #[-1,1] -> [0,1] for vis 
+        return out
+
+
+class DvdGanSimpleModel(BaseModel):
     def name(self):
-        return 'DvdGanModel'
+        return 'DvdGanSimpleModel'
 
     @staticmethod
     def modify_commandline_options(parser, is_train=True):

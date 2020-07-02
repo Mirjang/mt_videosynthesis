@@ -1,7 +1,7 @@
 import time
 import os
 from options.train_options import TrainOptions
-from data import CreateDataLoader
+from data import CreateDataLoader, SplitDataLoader
 from models import create_model
 from util.visualizer import Visualizer
 import torch
@@ -23,19 +23,21 @@ if __name__ == '__main__':
         sanity_check(opt)
 
     data_loader = CreateDataLoader(copy.deepcopy(opt))
-    dataset = data_loader.load_data()
-    dataset_size = len(data_loader)
-
-
 
     validation_size=0
     if opt.validation_freq>0:
-        phase = opt.phase
-        opt.phase = opt.validation_set
-        validation_loader = CreateDataLoader(opt)
+        opt_val = copy.deepcopy(opt)
+        opt_val.phase = opt.validation_set
+        if opt.validation_set == "split": 
+            validation_loader, data_loader = SplitDataLoader(data_loader, copy.deepcopy(opt), opt_val, length_first = opt.max_val_dataset_size)
+        else:
+            validation_loader = CreateDataLoader(opt_val)
         validation_set = validation_loader.load_data()
-        opt.phase = phase
+
         validation_size = len(validation_loader)
+
+    dataset = data_loader.load_data()
+    dataset_size = len(data_loader)
 
     print('#training samples = %d' % dataset_size)
     print('#validation samples = %d' % validation_size)

@@ -46,6 +46,12 @@ def CreateDataLoader(opt):
     data_loader.initialize(opt)
     return data_loader
 
+def SplitDataLoader(dataloader, opt0, opt1, length_first):
+    loader_0,loader_1 = CustomDatasetDataLoader(), CustomDatasetDataLoader()
+    set_0,set_1 = torch.utils.data.random_split(dataloader.dataset,[length_first, len(dataloader) - length_first])
+    loader_0.initialize(opt0, dataset = set_0)
+    loader_1.initialize(opt1, dataset = set_1)
+    return loader_0, loader_1
 
 # Wrapper class of Dataset class that performs
 # multi-threaded data loading
@@ -53,9 +59,10 @@ class CustomDatasetDataLoader(BaseDataLoader):
     def name(self):
         return 'CustomDatasetDataLoader'
 
-    def initialize(self, opt):
+    def initialize(self, opt, dataset = None):
         BaseDataLoader.initialize(self, opt)
-        self.dataset = create_dataset(opt)
+        self.dataset = dataset if dataset else create_dataset(opt)
+
         self.dataloader = torch.utils.data.DataLoader(
             self.dataset,
             batch_size=opt.batch_size,
