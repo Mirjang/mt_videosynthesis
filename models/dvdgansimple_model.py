@@ -11,7 +11,6 @@ from .networks import VGG16, UnetSkipConnectionBlock, ConvLSTMCell, ConvGRUCell
 from .networks import NLayerDiscriminator
 from collections import OrderedDict,namedtuple
 from torchvision import models
-from collections import namedtuple
 
 
 def gram_matrix(y):
