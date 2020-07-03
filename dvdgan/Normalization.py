@@ -2,7 +2,6 @@ import torch
 from torch import nn
 from torch.nn import Parameter
 
-from tensorboardX import SummaryWriter
 
 def l2normalize(v, eps=1e-12):
     return v / (v.norm() + eps)

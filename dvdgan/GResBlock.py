@@ -2,9 +2,9 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
-from tensorboardX import SummaryWriter
+from .Normalization import ConditionalNorm
+import torch.nn.utils.spectral_norm as SpectralNorm
 
-from Module.Normalization import ConditionalNorm, SpectralNorm
 
 class GResBlock(nn.Module):
 

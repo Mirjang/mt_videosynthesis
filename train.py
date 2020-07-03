@@ -57,7 +57,8 @@ if __name__ == '__main__':
             visuals = {}
             for i, data in enumerate(validation_set):
                 model.set_input(data) 
-                torch.cuda.synchronize()                
+                if opt.gpu_ids[0]>0:
+                    torch.cuda.synchronize()                
                 model.test()
                 current_losses, visuals = model.compute_losses()
                 #current_losses = model.get_current_losses()

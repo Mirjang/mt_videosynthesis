@@ -3,8 +3,6 @@ import torch.nn as nn
 from torch.nn import functional as F
 from torch.nn import init
 
-from tensorboardX import SummaryWriter
-
 class SeparableAttn(nn.Module):
 
     def __init__(self, in_dim, activation=F.relu, pooling_factor=2, padding_mode='constant', padding_value=0):

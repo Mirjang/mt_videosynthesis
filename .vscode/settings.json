@@ -2,5 +2,7 @@
     "python.pythonPath": "C:\\Users\\Killerpony\\anaconda3\\python.exe",
     "python.jediEnabled": false,
     "python.languageServer": "Microsoft",
-    "python.analysis.downloadChannel": "beta"
+    "python.analysis.downloadChannel": "beta",
+    "files.eol": "\n", 
+
 }
