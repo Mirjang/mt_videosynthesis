@@ -4,7 +4,8 @@ from torch.nn import functional as F
 
 
 from .GResBlock import GResBlock
-import torch.nn.utils.spectral_norm as SpectralNorm
+from .Normalization import SpectralNorm
+#import torch.nn.utils.spectral_norm as SpectralNorm
 from .ConvGRU import ConvGRU
 from .Attention import SelfAttention, SeparableAttn
 # from Module.CrossReplicaBN import ScaledCrossReplicaBatchNorm2d
@@ -59,12 +60,19 @@ class Generator(nn.Module):
         self.colorize = SpectralNorm(nn.Conv2d(2 * ch, 3, kernel_size=(3, 3), padding=1))
 
 
-    def forward(self, x, class_id=0):
+   
+     
+    def forward(self, x, class_id = None):
+        x = x * 2 - 1 #[0,1] -> [-1,1]
 
         if self.hierar_flag is True:
             noise_emb = torch.split(x, self.in_dim, dim=1)
         else:
             noise_emb = x
+
+        if class_id is None:
+            class_id = torch.zeros(x.shape[0], device = x.device).long()
+            class_emb = self.embedding(class_id)
 
         class_emb = self.embedding(class_id)
 
@@ -115,10 +123,9 @@ class Generator(nn.Module):
 
         BT, C, W, H = y.size()
         y = y.view(-1, self.n_frames, C, W, H) # B, T, C, W, H
+        y = (y+1) / 2.0 #[-1,1] -> [0,1] for vis 
 
-        return y
-
-      
+        return y 
 
 if __name__ == "__main__":
 

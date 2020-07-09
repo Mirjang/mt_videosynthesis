@@ -21,8 +21,9 @@ def sanity_check(opt):
         exit("Abort using file: " + abort_file)
 
 
-    #opt.max_dataset_size = 1
-    freq = 20
+    opt.max_dataset_size = 1
+    opt.max_val_dataset_size = 1 
+    freq = 10
     opt.batch_size = 1
     opt.print_freq = freq
     opt.display_freq = freq
@@ -31,10 +32,10 @@ def sanity_check(opt):
     opt.niter = 500
     opt.niter_decay = 0 
     opt.display_env = "sanity_check"
-    opt.num_display_frames = int(opt.max_clip_length*opt.fps)-2
+    opt.num_display_frames = 10
     opt.train_mode ="frame"
     #opt.reparse_data=True
-    #opt.lr = 0.004
+    opt.lr = 0.004
     opt.pretrain_epochs = 0
 
     opt.verbose = True
@@ -45,18 +46,18 @@ def sanity_check(opt):
     t_min = 100000
     t_max = 0
     #show some data using opencv, only works when display is available
-    for _,data in enumerate(dataset): 
-        clip = data['VIDEO'][0] #first elem in batch
-       # print(clip.shape)
-        T,_,_,_ = clip.shape
-        #print(T)
-        # for i in range(min(T,150)):
-        #     frame = clip[i].numpy()#.transpose(1,2,0)
-        #     frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-        #     cv2.imshow("1", frame)
-        #     cv2.waitKey(int(1.0/float(30)*1000))
-        t_min = min(t_min, T)
-        t_max = max(t_max, T)
+    # for _,data in enumerate(dataset): 
+    #     clip = data['VIDEO'][0] #first elem in batch
+    #    # print(clip.shape)
+    #     T,_,_,_ = clip.shape
+    #     #print(T)
+    #     # for i in range(min(T,150)):
+    #     #     frame = clip[i].numpy()#.transpose(1,2,0)
+    #     #     frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+    #     #     cv2.imshow("1", frame)
+    #     #     cv2.waitKey(int(1.0/float(30)*1000))
+    #     t_min = min(t_min, T)
+    #     t_max = max(t_max, T)
 
     print(f"Length: Min: {t_min} Max: {t_max}")
 
@@ -81,7 +82,7 @@ def sanity_check(opt):
     data = next(iter(dataset))
 
 
-    for epoch in range(opt.epoch_count, opt.niter + opt.niter_decay + 1):
+    for epoch in range(5000):
         # training loop
 
         epoch_start_time = time.time()
@@ -109,7 +110,6 @@ def sanity_check(opt):
             visualizer.display_current_results(model.get_current_visuals(), epoch, save_result)
 
         if total_steps % opt.print_freq == 0:
-            print(opt.name)
             losses = model.get_current_losses()
             t = (time.time() - iter_start_time) / opt.batch_size
             visualizer.print_current_losses(epoch, epoch_iter, losses, t, t_data)
@@ -122,3 +122,6 @@ def sanity_check(opt):
         if epoch % 50 == 0:
             print('End of sanity_check epoch %d / %d \t Time Taken: %d sec' %
                 (epoch, opt.niter + opt.niter_decay, time.time() - epoch_start_time))
+
+
+    print("SANITY CHECK DONE")

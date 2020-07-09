@@ -38,6 +38,7 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--validation_freq', type=int, default=10, help='validate after every x epochs')
         parser.add_argument('--validation_set', type=str, default="test", help='name of the validation set (default: test, bc. i didnt define a validation set for most datasets)')
 
+        parser.add_argument('--n_critic', type=int, default=2, help='train generator every n_critic steps')
 
         parser.add_argument('--dvd_spatial_frames', type=int, default=8, help='nr. of frames sampled by the per frame discriminator')
         parser.add_argument('--dvd_temporal_downsample', type=int, default=2, help='down sample factor for temportal discriminator')

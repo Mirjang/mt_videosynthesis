@@ -2,9 +2,8 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
-from .Normalization import ConditionalNorm
-import torch.nn.utils.spectral_norm as SpectralNorm
-
+from .Normalization import ConditionalNorm, SpectralNorm
+#import torch.nn.utils.spectral_norm as SpectralNorm
 
 class GResBlock(nn.Module):
 
@@ -17,6 +16,7 @@ class GResBlock(nn.Module):
         self.downsample_factor = downsample_factor
         self.activation = activation
         self.bn = bn if downsample_factor is 1 else False
+        self.cbn = bn and n_class > 1
 
         if kernel_size is None:
             kernel_size = [3, 3]
@@ -36,8 +36,12 @@ class GResBlock(nn.Module):
         #     self.skip_proj = True
 
         if bn:
-            self.CBNorm1 = ConditionalNorm(in_channel, n_class) # TODO 2 x noise.size[1]
-            self.CBNorm2 = ConditionalNorm(out_channel, n_class)
+            if self.cbn:
+                self.CBNorm1 = ConditionalNorm(in_channel, n_class) # TODO 2 x noise.size[1]
+                self.CBNorm2 = ConditionalNorm(out_channel, n_class)
+            else: 
+                self.CBNorm1 = nn.BatchNorm2d(in_channel)
+                self.CBNorm2 = nn.BatchNorm2d(out_channel)
 
     def forward(self, x, condition=None):
 
@@ -47,7 +51,7 @@ class GResBlock(nn.Module):
         out = x
 
         if self.bn:
-            out = self.CBNorm1(out, condition)
+            out = self.CBNorm1(out, condition) if self.cbn else self.CBNorm1(out)
 
         out = self.activation(out)
 
@@ -58,7 +62,7 @@ class GResBlock(nn.Module):
 
         if self.bn:
             out = out.view(BT, -1, W * self.upsample_factor, H * self.upsample_factor)
-            out = self.CBNorm2(out, condition)
+            out = self.CBNorm2(out, condition) if self.cbn else self.CBNorm2(out)
 
         out = self.activation(out)
         out = self.conv1(out)

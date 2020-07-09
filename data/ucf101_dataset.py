@@ -19,28 +19,31 @@ def get_length(filename):
         stderr=subprocess.STDOUT)
     return float(result.stdout)
 
-def parse_dataset(root, clips_file = "info.csv", clip_length = 1.0, skip_length = -1.0, write = True, safe = True, min_nframes = 30):
+def parse_dataset(root, clips_file = "info.csv", clip_length = 1.0, write = True, safe = True, min_nframes = 30):
     i = 0
-    skip_length = max(clip_length, skip_length)
     df = pd.DataFrame(None, columns = ["file_name", "start", "end"])
     vids = glob.glob(os.path.join(root, "*.mp4")) + glob.glob(os.path.join(root, "*.avi"))
+    start = 0
+    discarded = 0
     for file_name in vids:
-        vid_length = get_length(file_name) - 0.1 #just to make sure we dont get a shorter clip
-        for l in range(int(vid_length/skip_length)): 
-            start = l*skip_length
-            end = start + skip_length
-            if safe: 
-                frames, _, info = torchvision.io.read_video(os.path.join(root, file_name), start, end, pts_unit="sec")
-                if frames.shape[0] < min_nframes: 
-                    continue
-                
+        vid_length = get_length(file_name)
+        end = vid_length
+        use_clip = True
+        if safe: 
+            frames, _, info = torchvision.io.read_video(os.path.join(root, file_name), start, end, pts_unit="sec")
+            if frames.shape[0] < min_nframes or vid_length < clip_length: 
+                print(f"Discarding: {file_name} - Frames: {frames.shape[0]}/{min_nframes} - Length: {vid_length}/{clip_length}")
+                use_clip = False
+                discarded += 1
+
+        if use_clip:
             df = df.append({"file_name":file_name, "start": start, "end": end}, ignore_index=True)
 
         if i % 100 == 0:
             print(f"video parsing: {i}/{len(vids)} - Num Clips: {df.shape[0]}")   
         i +=1 
 
-    print(f"Done parsing {i} videos into {df.shape[0]} clips.")
+    print(f"Done parsing {i} videos into {df.shape[0]} clips. Discarded: {discarded} clips")
     if write: 
         df.to_csv(os.path.join(root, clips_file), header = True, mode = 'w', index = False)
     return df
@@ -64,9 +67,7 @@ class UCF101Dataset(BaseDataset):
 
         clip_file_abs = os.path.join(self.root, opt.clips_file)
         if not os.path.exists(clip_file_abs) and len(glob.glob(os.path.join(self.root, "*.mp4")) + glob.glob(os.path.join(self.root, "*.avi")))>0 or opt.reparse_data: 
-            actual_length = self.max_clip_length * self.skip_frames
-            skip_length = actual_length * 2 # dont use back2back frames to save compute
-            self.df = parse_dataset(self.root, clips_file = opt.clips_file, clip_length = actual_length, skip_length = skip_length, write=True, safe = True, min_nframes = self.nframes)
+            self.df = parse_dataset(self.root, clips_file = opt.clips_file, clip_length = self.max_clip_length, write=True, safe = True, min_nframes = self.nframes * self.skip_frames)
         else: 
             self.df = pd.read_csv(clip_file_abs)
         self.len = int(min(opt.max_dataset_size, self.df.shape[0]))
@@ -79,19 +80,26 @@ class UCF101Dataset(BaseDataset):
         # start = random.uniform(clip['start'], clip['end'] - self.max_clip_length)
         # end = min(start + self.max_clip_length, clip['end'])
         start = clip["start"]
-        end = min(clip["end"], start + self.max_clip_length * self.skip_frames)
+        start = random.uniform(clip['start'], clip['end'] - self.max_clip_length)
+        #end = min(clip["end"], start + self.max_clip_length * self.skip_frames)
+        end = min(start + self.max_clip_length, clip['end'])
+
+
         frames, _, info = torchvision.io.read_video(os.path.join(self.root,clip['file_name']), start, end, pts_unit="sec")
+        
+        
+        if frames.shape[0] < self.nframes*self.skip_frames: 
+            print(f"ERROR: id: {index} has {frames.shape[0]}/{self.nframes*self.skip_frames} frames. File name: {clip['file_name']}")
+            missing = self.nframes * self.skip_frames - frames.shape[0]
+            frames = torch.cat([frames, frames[-1,...].repeat(missing, 1, 1, 1)])
+        
         if self.skip_frames>1: 
             T,C,H,W = frames.shape
-            skipped = torch.zeros(T//self.skip_frames, C,H,W)
-            for i in range(T//self.skip_frames):
+            skipped = torch.zeros(self.nframes, C,H,W)
+            for i in range(self.nframes):
                 skipped[i] = frames[i*self.skip_frames]
             frames = skipped
 
-        if frames.shape[0] < self.nframes: 
-            print(f"ERROR: id: {index} has {frames.shape[0]}/{self.nframes} frames. File name: {clip['file_name']}")
-            missing = self.nframes - frames.shape[0]
-            frames = torch.cat([frames, frames[-1,...].repeat(missing, 1, 1, 1)])
         frames = F.interpolate(frames[:self.nframes,...].float().permute(0,3,1,2), size = (self.resolution, self.resolution), mode = "bilinear", align_corners=False).permute(0,2,3,1)
 
         return {'VIDEO':frames[:self.nframes]}

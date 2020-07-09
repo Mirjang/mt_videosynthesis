@@ -107,6 +107,15 @@ def define_D(input_nc, ndf, netD,
         raise NotImplementedError('Discriminator model name [%s] is not recognized' % net)
     return init_net(net, init_type, init_gain, gpu_ids)
 
+def calc_loss(self, x, real_flag, adv_loss='hinge'):
+    if real_flag is True:
+        x = -x
+    if adv_loss == 'wgan-gp':
+        loss = torch.mean(x)
+    elif adv_loss == 'hinge':
+        loss = torch.nn.ReLU()(1.0 + x).mean()
+    return loss
+
 
 ##############################################################################
 # Classes
@@ -138,6 +147,19 @@ class GANLoss(nn.Module):
         target_tensor = self.get_target_tensor(input, target_is_real)
         return self.loss(input, target_tensor)
 
+class WGANLoss(nn.Module):
+    def __init__(self, adv_loss = 'hinge'):
+        super(WGANLoss, self).__init__()
+        self.adv_loss = adv_loss
+
+    def __call__(self, x, real_flag):
+        if real_flag is True:
+            x = -x
+        if self.adv_loss == 'wgan-gp':
+            loss = torch.mean(x)
+        elif self.adv_loss == 'hinge':
+            loss = torch.nn.ReLU()(1.0 + x).mean()
+        return loss
 
 # Defines the generator that consists of Resnet blocks between a few
 # downsampling/upsampling operations.

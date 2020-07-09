@@ -3,6 +3,12 @@
     "python.jediEnabled": false,
     "python.languageServer": "Microsoft",
     "python.analysis.downloadChannel": "beta",
-    "files.eol": "\n", 
+    "files.eol": "\n",
+    "files.exclude": {
+        "**.git": true,
+        "**/.svn": true,
+        "**/*.pyc": {"when": "$(basename).py"}, 
+        "**/__pycache__": true
+    }
 
 }

@@ -15,7 +15,6 @@ class BaseOptions():
         parser.add_argument('--dataroot',type=str, default = "../datasets", help='path to images (should have subfolders trainA, trainB, valA, valB, etc)')
 
         parser.add_argument('--batch_size', type=int, default=1, help='input batch size')
-        parser.add_argument('--fineSize', type=int, default=512, help='then crop to this size')
         parser.add_argument('--display_winsize', type=int, default=256, help='display window size for both visdom and HTML')
         parser.add_argument('--num_display_frames', type=int, default=8, help='display first n frames of predicted video')
 
@@ -27,9 +26,6 @@ class BaseOptions():
         parser.add_argument('--nrdf', type=int, default=64, help='# of filters in decoder of RNN')
 
         parser.add_argument('--ndf', type=int, default=64, help='# of discrim filters in first conv layer')
-        parser.add_argument('--netD', type=str, default='basic', help='selects model to use for netD')
-        parser.add_argument('--netG', type=str, default='resnet_9blocks', help='selects model to use for netG')
-        parser.add_argument('--n_layers_D', type=int, default=3, help='only used if netD==n_layers')
         parser.add_argument('--gpu_ids', type=str, default='0', help='gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU')
         parser.add_argument('--name', type=str, default='experiment_name', help='name of the experiment. It decides where to store samples and models')
         parser.add_argument('--dataset_mode', type=str, default='video', help='chooses how datasets are loaded.')
@@ -40,20 +36,13 @@ class BaseOptions():
         parser.add_argument('--checkpoints_dir', type=str, default='../checkpoints', help='models are saved here')
         parser.add_argument('--norm', type=str, default='instance', help='instance normalization or batch normalization')
         parser.add_argument('--serial_batches', action='store_true', help='if true, takes images in order to make batches, otherwise takes them randomly')
-        parser.add_argument('--no_dropout', action='store_true', help='no dropout for the generator')
         parser.add_argument('--max_dataset_size', type=int, default=float("inf"), help='Maximum number of samples allowed per dataset. If the dataset directory contains more than max_dataset_size, only a subset is loaded.')
         parser.add_argument('--resize_or_crop', type=str, default='resize_and_crop', help='scaling and cropping of images at load time [resize_and_crop|crop|scale_width|scale_width_and_crop|none]')
-        parser.add_argument('--no_augmentation', action='store_true', help='if specified, no data augmentation')
         parser.add_argument('--init_type', type=str, default='xavier', help='network initialization [normal|xavier|kaiming|orthogonal]')
         parser.add_argument('--init_gain', type=float, default=0.02, help='scaling factor for normal, xavier and orthogonal.')
         parser.add_argument('--verbose', action='store_true', help='if specified, print more debugging information')
         parser.add_argument('--suffix', default='', type=str, help='customized suffix: opt.name = opt.name + suffix: e.g., {model}_{netG}_size{loadSize}')
         parser.add_argument('--lossType', type=str, default='L1', help='loss type for the final output')
-
-        parser.add_argument('--dropout_rate', type=float, default=0, help='dropout')
-        parser.add_argument('--suspend_gan_epochs', type=int, default=0, help='only start gan loss after n epochs to stabilize training')
-
-        parser.add_argument('--target_downsample_factor', type=int, default=1, help='super resolution')
 
         parser.add_argument('--skip_frames', type=int, default=1, help='only use every n frames')
 
@@ -67,7 +56,7 @@ class BaseOptions():
         parser.add_argument('--sanity_check', action='store_true', help='perform sanity check before running model')
         parser.add_argument('--reparse_data', action='store_true', help='reparse data set when applicable (e.g for new clip length)')
         parser.add_argument('--resolution', type=int, default=64, help='spatial resolution')
-
+        parser.add_argument('--unroll_frames', type=int, default=1, help='compute N frames per GRU unroll')
 
 
         self.initialized = True

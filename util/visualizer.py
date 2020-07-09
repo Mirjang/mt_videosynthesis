@@ -182,7 +182,7 @@ class Visualizer():
                                 video = video.permute(0,3,1,2)
                                 video = F.interpolate(video, size=(h,w))
                                 video = video.permute(0,2,3,1)
-                            self.vis.video(video,win=self.display_id+self.reserved_ids+id,opts=dict(title=prefix + label, fps=self.opt.fps/self.opt.skip_frames))
+                            self.vis.video(video,win=self.display_id+self.reserved_ids+id,opts=dict(title=prefix + label, fps=self.opt.fps/self.opt.skip_frames // 2))
                     if len(plts)>0: 
 
                         for (label,plt) in iter(plts):                         

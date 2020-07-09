@@ -4,8 +4,8 @@ import torch.nn.functional as F
 
 from torch.nn import init
 
-from .Normalization import ConditionalNorm
-import torch.nn.utils.spectral_norm as SpectralNorm
+from .Normalization import ConditionalNorm, SpectralNorm
+#import torch.nn.utils.spectral_norm as SpectralNorm
 # from Module.Attention import SelfAttention
 # from Module.GResBlock import GResBlock
 
@@ -185,14 +185,16 @@ class GBlock(nn.Module):
 
 class SpatialDiscriminator(nn.Module):
 
-    def __init__(self, chn=128, n_class=4):
+    def __init__(self, chn=128, sigmoid = False, cgan = False):
         super().__init__()
 
-        self.pre_conv = nn.Sequential(SpectralNorm(nn.Conv2d(3, 2*chn, 3, padding=1), ),
+        in_ch = 6 if cgan else 3
+
+        self.pre_conv = nn.Sequential(SpectralNorm(nn.Conv2d(in_ch, 2*chn, 3, padding=1), ),
                                       nn.ReLU(),
                                       SpectralNorm(nn.Conv2d(2*chn, 2*chn, 3, padding=1), ),
                                       nn.AvgPool2d(2))
-        self.pre_skip = SpectralNorm(nn.Conv2d(3, 2*chn, 1))
+        self.pre_skip = SpectralNorm(nn.Conv2d(in_ch, 2*chn, 1))
 
         self.conv1 = GBlock(2*chn, 4*chn, bn=False, upsample=False, downsample=True)
         self.attn = SelfAttention(4*chn)
@@ -204,15 +206,18 @@ class SpatialDiscriminator(nn.Module):
 
         self.linear = SpectralNorm(nn.Linear(16*chn, 1))
 
-        self.embed = nn.Embedding(n_class, 16*chn)
-        self.embed.weight.data.uniform_(-0.1, 0.1)
-        self.embed = SpectralNorm(self.embed)
+        self.sigmoid = sigmoid
 
-    def forward(self, x, class_id = 0):
+    def forward(self, x, class_id = None):
         # reshape input tensor from BxTxCxHxW to BTxCxHxW
-        batch_size, T, C, W, H = x.size()
-
-        x = x.view(batch_size * T, C, H, W)
+        x = x * 2 - 1 #[0,1] -> [-1,1]
+        
+        if len(x.shape) is 5: 
+            batch_size, T, C, W, H = x.size()
+            x = x.view(batch_size * T, C, H, W)
+        else: #we only got a single frame form our framework
+            T = 1
+            batch_size, C, W, H = x.shape
 
         out = self.pre_conv(x)
         out = out + self.pre_skip(F.avg_pool2d(x, 2))
@@ -242,22 +247,12 @@ class SpatialDiscriminator(nn.Module):
         # sum on T axis
         # out = out.sum(1)
 
-        out_linear = self.linear(out).squeeze(1)
+        out = self.linear(out).squeeze(1)
+        
+        if self.sigmoid: 
+            out = torch.sigmoid(out)
 
-        # repeat class_id for each frame
-        # TODO: test in case multi-class
-        class_id = class_id.view(-1, 1).repeat(1, T).view(-1)
-
-        embed = self.embed(class_id)
-
-        prod = (out * embed).sum(1)
-
-        # out_linear = out_linear.view(-1, T)
-        # prod = prod.view(-1, T)
-
-        # score = (out_linear + prod).sum(1)
-
-        return out_linear + prod
+        return out
 
 
 def conv3x3x3(in_planes, out_planes, stride=1):
@@ -337,7 +332,7 @@ class Res3dBlock(nn.Module):
 
 class TemporalDiscriminator(nn.Module):
 
-    def __init__(self, chn=128, n_class=4):
+    def __init__(self, chn=128, n_class=4, sigmoid = False):
         super().__init__()
 
         gain = 2 ** 0.5
@@ -362,16 +357,17 @@ class TemporalDiscriminator(nn.Module):
 
         self.linear = SpectralNorm(nn.Linear(16*chn, 1))
 
-        self.embed = nn.Embedding(n_class, 16*chn)
-        self.embed.weight.data.uniform_(-0.1, 0.1)
-        self.embed = SpectralNorm(self.embed)
+        self.sigmoid = sigmoid
 
-    def forward(self, x, class_id = 0):
+
+    def forward(self, x):
+        x = x * 2 - 1 #[0,1] -> [-1,1]
+
         # pre-process with avg_pool2d to reduce tensor size
-        # B, T, C, H, W = x.size()
-        # x = F.avg_pool2d(x.view(B * T, C, H, W), kernel_size=2)
-        # _, _, H, W = x.size()
-        # x = x.view(B, T, C, H, W).permute(0, 2, 1, 3, 4).contiguous() # B x C x T x W x H
+        B, T, C, H, W = x.size()
+        x = F.avg_pool2d(x.view(B * T, C, H, W), kernel_size=2)
+        _, _, H, W = x.size()
+        x = x.view(B, T, C, H, W).permute(0, 2, 1, 3, 4).contiguous() # B x C x T x W x H
 
         out = self.pre_conv(x)
         out = out + self.pre_skip(F.avg_pool3d(x, 2))
@@ -398,53 +394,43 @@ class TemporalDiscriminator(nn.Module):
         out = out.sum(2)
         # sum on T axis
         # out = out.sum(1)
-        out_linear = self.linear(out).squeeze(1)
+        out = self.linear(out).squeeze(1)
 
-        # repeat class_id for each frame
-        # TODO: test in case multi-class
-        class_id = class_id.view(-1, 1).repeat(1, T).view(-1)
+        if self.sigmoid: 
+            out = torch.sigmoid(out)
 
-        embed = self.embed(class_id)
-
-        prod = (out * embed).sum(1)
-
-        # out_linear = out_linear.view(-1, T)
-        # prod = prod.view(-1, T)
-
-        # score = (out_linear + prod).sum(1)
-
-        return out_linear + prod
+        return out
 ########################################################################################
 
 
-if __name__ == '__main__':
+# if __name__ == '__main__':
 
-    batch_size = 6
-    n_frames = 8
-    n_class = 4
-    n_chn = 4
+#     batch_size = 6
+#     n_frames = 8
+#     n_class = 4
+#     n_chn = 4
 
-    model = TemporalDiscriminator(chn=n_chn, n_class=n_class)
-    model.cuda()
+#     model = TemporalDiscriminator(chn=n_chn, n_class=n_class)
+#     model.cuda()
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, betas=(0, 0.9),
-                                 weight_decay=0.00001)
-    for i in range(100):
-        data = torch.randn((batch_size, n_frames, 3, 64, 64)).cuda()
+#     optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, betas=(0, 0.9),
+#                                  weight_decay=0.00001)
+#     for i in range(100):
+#         data = torch.randn((batch_size, n_frames, 3, 64, 64)).cuda()
 
-        label = torch.randint(0, n_class, (batch_size,)).cuda()
-        # B, T, C, H, W = data.size()
-        # data = F.avg_pool2d(data.view(B * T, C, H, W), kernel_size=2)
-        # _, _, H, W = data.size()
-        # data = data.view(B, T, C, H, W)
+#         label = torch.randint(0, n_class, (batch_size,)).cuda()
+#         # B, T, C, H, W = data.size()
+#         # data = F.avg_pool2d(data.view(B * T, C, H, W), kernel_size=2)
+#         # _, _, H, W = data.size()
+#         # data = data.view(B, T, C, H, W)
 
-        # # transpose to BxCxTxHxW
-        # data = data.transpose(1, 2).contiguous()
+#         # # transpose to BxCxTxHxW
+#         # data = data.transpose(1, 2).contiguous()
 
-        out = model(data, label)
-        loss = torch.mean(out)
-        print(loss.data)
+#         out = model(data, label)
+#         loss = torch.mean(out)
+#         print(loss.data)
 
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+#         optimizer.zero_grad()
+#         loss.backward()
+#         optimizer.step()
