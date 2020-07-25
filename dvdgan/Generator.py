@@ -5,6 +5,8 @@ from torch.nn import functional as F
 
 from .GResBlock import GResBlock
 from .Normalization import SpectralNorm
+#def SpectralNorm(x): 
+#    return x 
 #import torch.nn.utils.spectral_norm as SpectralNorm
 from .ConvGRU import ConvGRU
 from .Attention import SelfAttention, SeparableAttn

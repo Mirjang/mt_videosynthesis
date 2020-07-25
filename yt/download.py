@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import sys
 import shutil
 import tempfile
 import concurrent.futures
@@ -52,7 +53,7 @@ def move_files(source, dest, override = True):
                 continue
         shutil.move(os.path.join(source,f), dest)        
 
-def download_by_keyword(keyword, max_results= 5,dir_name = None, path ="./tmp", retries = 5, max_workers = 8, override_existing = False,min_res="240p", max_res="720p"): 
+def download_by_keyword(keyword, max_results= 5,dir_name = None, path ="./tmp", retries = 5, max_workers = 8, override_existing = False,min_res="240p", max_res="360p"): 
     san_key = keyword.strip().replace(" ", "_") if not dir_name else dir_name
     path = os.path.join(path, san_key)
     
@@ -123,3 +124,10 @@ def download(url, path, filename = None, retries = 3):
             print(f"Exception {e} while downloading: {url} ...retrying {i+1}/{retries}")
         
     return False
+
+
+if __name__ == "__main__":
+
+    #download_by_keyword("debug")
+    key = sys.argv[1]
+    download_by_keyword(key, max_results= 1000,dir_name = None, path ="./", retries = 5, max_workers = 5, override_existing = False,min_res="240p", max_res="360p")

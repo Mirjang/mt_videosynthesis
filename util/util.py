@@ -34,7 +34,7 @@ def diagnose_network(net, name='network'):
         mean = mean / count
         norm = norm / count
     norm = norm ** .5
-    print("%s: mean: %.4f\tnorm: %.4f"%(name,mean,norm))
+    print("%s: mean: %.8f\tnorm: %.8f"%(name,mean,norm))
 
 
 def save_image(image_numpy, image_path):

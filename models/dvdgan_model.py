@@ -19,6 +19,9 @@ from dvdgan.Generator import Generator as DvdGenerator
 from dvdgan.GResBlock import GResBlock
 from dvdgan.ConvGRU import ConvGRU
 from dvdgan.Normalization import SpectralNorm
+#def SpectralNorm(x): 
+#    return x
+from .dvdgansimple_model import GRUEncoderDecoderNet as SimpleDvdGenerator
 #import torch.nn.utils.spectral_norm as SpectralNorm
 
 
@@ -63,14 +66,15 @@ class DvdConditionalGenerator(nn.Module):
 
         # TODO impl ScaledCrossReplicaBatchNorm
         # self.ScaledCrossReplicaBN = ScaledCrossReplicaBatchNorm2d(1 * chn)
-        if step_frames == 1: 
-            self.colorize = SpectralNorm(nn.Conv2d(2 * ch, 3, kernel_size=(3, 3), padding=1))
-        else: 
-            #decode 1 RNN step into multiple frames using 3x3 convs
+
+        self.colorize = SpectralNorm(nn.Conv2d(2 * ch, 3, kernel_size=(3, 3), padding=1))
+        #decode 1 RNN step into multiple frames using 3x3 convs
+
+        if step_frames > 1: 
             self.decoder = nn.Sequential(
-                SpectralNorm(nn.Conv3d(2*ch, ch, kernel_size=(3, 3, 3), padding=1)),
+                SpectralNorm(nn.Conv3d(2*ch, 2*ch, kernel_size=(3, 3, 3), padding=1)),
                 nn.ReLU(),
-                SpectralNorm(nn.Conv3d(ch, 3, kernel_size=(3,3,3), padding=1)),
+                SpectralNorm(nn.Conv3d(2*ch, 2*ch, kernel_size=(3,3,3), padding=1)),
             )
 
     def forward(self, x):
@@ -126,24 +130,24 @@ class DvdConditionalGenerator(nn.Module):
                 y_i = self.decoder(y_i)
                 ysp.append(y_i)
             
-            y = torch.cat(ysp, dim = 2) # B, T, C, W, H
+            y = torch.cat(ysp, dim = 2)# B, C, T, W, H
 
         #    print(y.shape)
         #    y = F.interpolate(y, size = (self.step_frames,W,H))
         #     print(y.shape)
         #    y = self.decoder(y) # B, 3, T, H, W
-            y = y.permute(0, 2, 1, 3, 4) # B, T, 3, W, H
+            y = y.permute(0, 2, 1, 3, 4) [:,:self.n_frames,...].contiguous() # B, T, C, W, H
+            _,_, C, W, H = y.size()
+            y = y.view(-1, C, W, H)
 
-        else:
-            y = self.colorize(y)
-            y = y.view(-1, self.n_steps, C, W, H) # B, T/S, C*S, W, H
- 
+
+        y = self.colorize(y)
+        y = y.view(-1, self.n_frames,3, W, H) # B, T/S, C*S, W, H
+
         y = torch.tanh(y)
 
-        print(y.shape)
-        y = torch.cat([x.unsqueeze(1), y],  dim = 1)[:,:self.nframes, ...]
+        y = torch.cat([x.unsqueeze(1), y],  dim = 1)
         y = (y+1) / 2.0 #[-1,1] -> [0,1] for vis 
-
         return y 
 
 
@@ -181,7 +185,6 @@ class DvdGanModel(BaseModel):
         elif self.opt.train_mode is "mixed":
             self.train_range = (1,self.nframes)
 
-
         # specify the images you want to save/display. The program will call base_model.get_current_visuals
         self.visual_names = ["prediction_target_video"]#, "activity_diag_plt"]#, "lossperframe_plt"]
         
@@ -200,7 +203,6 @@ class DvdGanModel(BaseModel):
                     "Y":self.activity_diag,
                     "X":[0]
             }
-
         # self.lossperframe_plt = {"opts": {
         #             'title': "Loss per frame",
         #             #'legend': ["L1 loss per frame"],
@@ -229,16 +231,16 @@ class DvdGanModel(BaseModel):
         #default ch = 32
         self.in_dim = 1
         self.condition_gen = True
-        self.conditional = False
+        self.conditional = True
         self.wgan = False
         bn = True
         if not self.wgan: 
             self.loss_names += ['accDs_real','accDs_fake','accDt_real', 'accDt_fake']
             self.visual_names.append("activity_diag_plt")
 
-        netG = DvdConditionalGenerator(n_frames = self.nframes, ch = 32, enc_ch = 8, latent_dim = 8, step_frames = self.opt.unroll_frames, bn = bn)
+      #  netG = DvdConditionalGenerator(n_frames = self.nframes, ch = 32, enc_ch = 16, latent_dim = 8, step_frames = self.opt.unroll_frames, bn = bn)
       #  netG = DvdGenerator(n_frames = self.nframes, ch = 8, n_class=1, in_dim = self.in_dim)
-
+        netG = SimpleDvdGenerator(self.nframes,opt.input_nc,ngf = 32, hidden_dims=64, enc2hidden = True)
         self.netG = networks.init_net(netG, opt.init_type, opt.init_gain, self.gpu_ids)
 
         if self.isTrain:
@@ -300,7 +302,7 @@ class DvdGanModel(BaseModel):
         #video = video * 256
         #return video.permute(0,1,3,4,2)
 
-    def epoch_frame_length(self, epoch): 
+    def epoch_frame_length(self, epoch):  
         increase_intervals = 5
         iter_per_interval = 5
         return max(8,min(self.nframes // increase_intervals * (epoch // iter_per_interval +1), self.nframes))
@@ -329,6 +331,17 @@ class DvdGanModel(BaseModel):
         loss = self.lambda_gp * d_loss_gp
         return loss
 
+    def sample_frames(self, vid, detach = False): 
+        _, T, *_ = self.predicted_video.shape
+        frames=[]
+        for i in random.sample(range(1, T), min(T-1,self.ndsframes)):
+            f = vid[:,i,...]
+            if detach:
+                f = f.detach().to(self.device)
+            if self.conditional: 
+                f = torch.cat([self.input, frame], dim = 1)
+            frames.append(f)
+        return torch.stack(frames, dim = 0)
 
     def backward_Ds_wgan(self, train_threshold = 0):
         self.loss_Ds_fake = 0
@@ -362,7 +375,6 @@ class DvdGanModel(BaseModel):
         self.loss_Ds.backward()
         return True
 
-
     def backward_Dt_wgan(self, train_threshold = 0):
         # Fake
         # stop backprop to the generator by detaching fake_B
@@ -379,7 +391,6 @@ class DvdGanModel(BaseModel):
         self.loss_Dt.backward()
         return True
 
-     
     def backward_G_wgan(self, epoch, train_threshold = 0):
         # First, G(A) should fake the discriminator
         self.loss_G = 0
@@ -414,30 +425,22 @@ class DvdGanModel(BaseModel):
         self.loss_accDs_fake = 0
         self.loss_accDs_real = 0
         _, T, *_ = self.predicted_video.shape
-        for i in random.sample(range(1, T), min(T-1,self.ndsframes)):
+    
+        # Fake
+        # stop backprop to the generator by detaching fake_B
+        fake = self.sample_frames(self.predicted_video, detach=True)
+        pred_fake = self.netDs(fake)
+        self.loss_accDs_fake = torch.mean(1-pred_fake).item()
+        self.loss_Ds_fake = self.criterionGAN(pred_fake, False)
+        
+        # Real
+        real = self.sample_frames(self.target_video, detach=True) 
+        pred_real = self.netDs(real)
+        self.loss_accDs_real = torch.mean(pred_real).item()
+        self.loss_Ds_real = self.criterionGAN(pred_real, True)
 
-            fake = self.predicted_video[:,i,...].detach().to(self.device) 
-            real = self.target_video[:,i,...]
-
-            if self.conditional: 
-                fake = torch.cat([self.input, fake], dim = 1)
-                real = torch.cat([self.input, real], dim = 1)
-            # Fake
-            # stop backprop to the generator by detaching fake_B
-            pred_fake = self.netDs(fake)
-            self.loss_accDs_fake = torch.mean(1-pred_fake).item()
-            self.loss_Ds_fake += self.criterionGAN(pred_fake, False)
-            
-            # Real
-            pred_real = self.netDs(real)
-            self.loss_accDs_real += torch.mean(pred_real).item()
-            self.loss_Ds_real += self.criterionGAN(pred_real, True)
-
-        self.loss_accDs_real = self.loss_accDs_real / self.ndsframes
-        self.loss_accDs_fake = self.loss_accDs_fake / self.ndsframes
         self.loss_acc_Ds = (self.loss_accDs_fake + self.loss_accDs_real)*.5
-        self.loss_Ds_real = self.loss_Ds_real / self.ndsframes
-        self.loss_Ds_fake = self.loss_Ds_fake / self.ndsframes
+        self.loss_Ds_real = self.loss_Ds_real
         # Combined loss
         self.loss_Ds = (self.loss_Ds_fake + self.loss_Ds_real)*0.5
 
@@ -475,20 +478,15 @@ class DvdGanModel(BaseModel):
         self.loss_Gt = 0
         self.loss_G_L1 = 0
 
-        for i in random.sample(range(1, self.nframes), self.ndsframes):
-            fake = self.predicted_video[:,i,...]
-            if self.conditional: 
-                fake = torch.cat([self.input, fake], dim = 1)
-
-            pred_fake_ds = self.netDs(fake)
-            self.loss_Gs += self.criterionGAN(pred_fake_ds, True)
-        self.loss_Gs = self.loss_Gs / self.ndsframes
+        samples = self.sample_frames(self.predicted_video, detach = False)
+        pred_fake_ds = self.netDs(samples)
+        self.loss_Gs = self.criterionGAN(pred_fake_ds, True)
 
         pred_fake_dt = self.netDt(self.predicted_video)
         self.loss_Gt = self.criterionGAN(pred_fake_dt, True)
 
-        trust_Ds = 1 if self.loss_acc_Ds_fake > train_threshold else 0
-        trust_Dt = 1 if self.loss_acc_Dt_fake > train_threshold else 0
+        trust_Ds = 1 if self.loss_accDs_fake > train_threshold else 0
+        trust_Dt = 1 if self.loss_accDt_fake > train_threshold else 0
         trust = trust_Ds + trust_Dt
 
         if trust_Ds > 0: 
@@ -549,7 +547,6 @@ class DvdGanModel(BaseModel):
             self.loss_Gt = 0
             self.loss_G_L1 = 0
 
-
             self.set_requires_grad(self.netDs, False)
             self.set_requires_grad(self.netDt, False)
 
@@ -561,7 +558,10 @@ class DvdGanModel(BaseModel):
             if update_G: 
                 nn.utils.clip_grad_norm_(self.netG.parameters(), self.opt.clip_grads)
                 self.optimizer_G.step()
-
+     
+        self.activity_diag_plt["X"] = list(range(self.activity_diag.shape[0]))
+        self.activity_diag_plt["Y"] = self.activity_diag
+        self.activity_diag = torch.cat([self.activity_diag, self.activity_diag[-1:]], dim = 0)
 
     def compute_losses(self, secs = 1, fps = 30): 
         T = secs * fps *1.0

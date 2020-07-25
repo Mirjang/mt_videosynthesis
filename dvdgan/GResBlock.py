@@ -4,6 +4,9 @@ from torch.nn import functional as F
 
 from .Normalization import ConditionalNorm, SpectralNorm
 #import torch.nn.utils.spectral_norm as SpectralNorm
+#def SpectralNorm(x): 
+#    return x
+
 
 class GResBlock(nn.Module):
 

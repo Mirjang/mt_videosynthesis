@@ -5,13 +5,6 @@ import sys
 import os
 import random
 from data.base_dataset import BaseDataset
-
-class Clip(): 
-    def __init__(self): 
-        self.start_time = 0
-        self.end_time = 0
-        self.length = 0 
-
 #expected header in info.csv: video_id,file_name,resolution,fps,start,end
 class VideoDataset(BaseDataset): 
 
