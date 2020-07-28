@@ -1,25 +1,23 @@
 import torch 
 import numpy as np 
+import cv2
+import pandas as pd
+
 
 # sets the diagonal (+- thickness/2) to color 
-def redx(tensor, col = [1.,0.,0.], thickness = 3): 
-
-    T = tensor.shape[0]
-    W = tensor.shape[-2]
-    H = tensor.shape[-1]
-    tensor *= .1 #darken everything
-
-    mask = torch.eye(W,H).byte().expand(T, -1, -1)
-    print(mask.shape)
-    tensor = tensor.permute(1,0,2,3)
-    print(tensor[:,mask].shape)
-    tensor[:, mask] = torch.tensor(col).unsqueeze(1).float()
-    tensor = tensor.permute(1,0,2,3)
-    
-    return tensor
+def redx(image, col = [255,0,0], thickness = 3, alpha = .1): 
+    col = np.array(col)[:,np.newaxis]
+    image = np.copy(image)
+    image = (image * alpha).astype(np.uint8)
+    S = image.shape[1]
+    x = np.concatenate([np.arange(S), np.arange(S)])
+    y = np.concatenate([np.arange(S), np.flip(np.arange(S))])
+    image[:, x, y] = col
+    #print(image.shape, x.shape, y.shape, col.shape, image[:,x,y].shape)
+    return image
 
 #samples tenstor and compares consecutive images, returns false, if all samples show constant (difference < eps) imaes
-def has_motion(x, n_tries = 10, dist = 5, eps = 1e-3): 
+def has_motion(x, n_tries = 8, dist = 5, eps = 1e-3): 
     T, C, H, W = x.shape
     P = H*W
     n_tries = min(n_tries, T)
@@ -30,4 +28,3 @@ def has_motion(x, n_tries = 10, dist = 5, eps = 1e-3):
         if torch.sum(c) > .1*P: #significant cnage in at least 10% of pixels should be good enough 
             return True
     return False
-
