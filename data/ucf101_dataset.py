@@ -7,46 +7,8 @@ import os
 import random
 from data.base_dataset import BaseDataset
 import glob
-
+from yt.processing import parse_dataset
 import subprocess
-
-#https://stackoverflow.com/questions/3844430/how-to-get-the-duration-of-a-video-in-python
-def get_length(filename):
-    result = subprocess.run(["ffprobe", "-v", "error", "-show_entries",
-                             "format=duration", "-of",
-                             "default=noprint_wrappers=1:nokey=1", filename],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT)
-    return float(result.stdout)
-
-def parse_dataset(root, clips_file = "info.csv", clip_length = 1.0, write = True, safe = True, min_nframes = 30):
-    i = 0
-    df = pd.DataFrame(None, columns = ["file_name", "start", "end"])
-    vids = glob.glob(os.path.join(root, "*.mp4")) + glob.glob(os.path.join(root, "*.avi"))
-    start = 0
-    discarded = 0
-    for file_name in vids:
-        vid_length = get_length(file_name)
-        end = vid_length
-        use_clip = True
-        if safe: 
-            frames, _, info = torchvision.io.read_video(os.path.join(root, file_name), start, end, pts_unit="sec")
-            if frames.shape[0] < min_nframes or vid_length < clip_length: 
-                print(f"Discarding: {file_name} - Frames: {frames.shape[0]}/{min_nframes} - Length: {vid_length}/{clip_length}")
-                use_clip = False
-                discarded += 1
-
-        if use_clip:
-            df = df.append({"file_name":file_name, "start": start, "end": end}, ignore_index=True)
-
-        if i % 100 == 0:
-            print(f"video parsing: {i}/{len(vids)} - Num Clips: {df.shape[0]}")   
-        i +=1 
-
-    print(f"Done parsing {i} videos into {df.shape[0]} clips. Discarded: {discarded} clips")
-    if write: 
-        df.to_csv(os.path.join(root, clips_file), header = True, mode = 'w', index = False)
-    return df
 
 #expected header in info.csv: video_id,file_name,resolution,fps,start,end
 class UCF101Dataset(BaseDataset): 

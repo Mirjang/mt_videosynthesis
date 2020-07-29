@@ -8,6 +8,7 @@ import torch
 import torch.nn.functional as F
 import torchvision
 from yt.processing import redx, has_motion
+from yt.download import download_video
 from util.util import tensor2im
 from util.visualizer import imresize
 from time import sleep
@@ -19,40 +20,59 @@ def insert_file_suffix(name, suffix):
     return ".".join(parts)
 
 
+def download_missing(df, root ="./"): 
+    for it, vid in df.iterrows(): 
+        file_name = os.path.join(root,vid['file_name'])
+        if not os.path.exists(file_name):     
+            res = vid['resolution']
+            downloaded = download_video(vid, root, retries = 10, max_res = res)
+            if downloaded is None: 
+                print(f"ERROR: could not download missing video: {vid['video_id']}")
+            else: 
+                print(f"Downloaded missing video: {vid['video_id']}")
+
+    
 def subsample_raw(df, root="./",
                 fps = 30, 
                 clip_length = 10.0,
                 crop_frist_last = 20.0,
-                max_samples_per_vid = 25, 
+                max_samples_per_vid = 20, 
                 min_distance = 5.0, 
                 print_freq = 10,
                 remove_constants = True, 
                 delete_original = False,
-                write_video = True): 
+                write_video = True, 
+                skip_procesed = True): 
     print("Subsampling raw videos!")
     out = pd.DataFrame(None, columns = df.columns)
 
-    for it, raw_vid in df.iterrows: 
+    for it, raw_vid in df.iterrows(): 
+        if skip_procesed and "_clip" in raw_vid['file_name']: 
+            out=out.append(raw_vid)
+            continue
         file_name = os.path.join(root,raw_vid['file_name'])
-        start = clip['start'] #this should always be 0 at this point... i think 
-        end = clip['end']
+        if not os.path.exists(file_name): 
+            continue
+
+        start = raw_vid['start'] #this should always be 0 at this point... i think 
+        end = raw_vid['end']
         raw_length = end - start
         if raw_length - 2 * crop_frist_last > clip_length: #unless we are given some very short vid, we just discard possible intros/outros
             start = start + crop_frist_last
             end = end - crop_frist_last
             raw_length = end - start
 
-        step = max(clip_length+min_distance, raw_length/max_samples_per_vid) #largest possible temporal distance between samples
+        step = max(clip_length+min_distance, raw_length/max_samples_per_vid - .5) #largest possible temporal distance between samples
         good_clips = 0
         for i in range(max_samples_per_vid): 
             clip_start = start + i* step
-            if clip_start + step > end: 
+            if clip_start + clip_length > end: 
                 break
 
             frames, _, info = torchvision.io.read_video(file_name, clip_start, clip_start+clip_length, pts_unit="sec")
             if not remove_constants or has_motion(frames, n_tries=8, dist = 5, eps = 1e-3): 
                 entry = copy.copy(raw_vid)
-                clip_name = insert_file_suffix(clip['file_name'], f"_clip{good_clips}")
+                clip_name = insert_file_suffix(raw_vid['file_name'], f"_clip{good_clips:03d}")
                 entry['file_name'] = clip_name
                 entry['start']=0
                 entry['end']=clip_length
@@ -65,16 +85,11 @@ def subsample_raw(df, root="./",
             os.remove(file_name)
 
         if it % print_freq == 0: 
-            print(f"it: {it} -- out: {out.shape[0]} removed: {it-out.shape[0]+1}")
+            print(f"it: {it} -- out: {out.shape[0]}")
 
     print(f"Subsample raw Done:\nin: {df.shape[0]} out: {out.shape[0]}")
 
-    return df
-
-
-def split_at_cuts(df, root="./"): 
-
-    return df
+    return out
 
 def remove_constants(df, root="./", print_freq = 10, max_length = 10.0): 
     print("Removing constant vids!")
@@ -90,8 +105,6 @@ def remove_constants(df, root="./", print_freq = 10, max_length = 10.0):
 
     print(f"Remove constands Done:\nin: {df.shape[0]} out: {out.shape[0]} removed: {df.shape[0]-out.shape[0]}")
     return out
-
-
 
 class ManualEdit(): 
 
@@ -149,7 +162,6 @@ class ManualEdit():
                 # self.vis.image(self.thumbnail, win = self.thumbnail_panel,opts=dict(title="thumbnails (select here)"))
                     self.vis.images(self.thumbnail_display, win = self.thumbnail_panel, nrow = self.nrows,opts=dict(title="thumbnails (select here)"))
 
-
         #global events
         if event['event_type'] == 'KeyPress':
             if event['key'] == 'Enter':
@@ -189,6 +201,8 @@ class ManualEdit():
             good_ones = batch[self.selected]
             out = out.append(good_ones)
             print(f"Selected {good_ones.shape[0]}/{batch.shape[0]} clips. Total: {out.shape[0]}")
+        
+        print(f"Manual Edit Done:\nin: {df.shape[0]} out: {out.shape[0]} removed: {df.shape[0]-out.shape[0]}")
 
         return out
 
@@ -230,9 +244,10 @@ if __name__ == "__main__":
     root = sys.argv[1]
 
     df = pd.read_csv(os.path.join(root,"info.csv"))
-
+  #  download_missing(df, root=root)
  #   df = remove_constants(df, root=root)
-    df = subsample_raw(df, root=root, write_video=False)
-#    manual_interface = ManualEdit("edit",root = root)
- #   df = manual_interface.run(df)
+   # df = subsample_raw(df, root=root, write_video=True, delete_original=True, print_freq=1)
+    manual_interface = ManualEdit("edit",root = root)
+    df = manual_interface.run(df)
 
+    df.to_csv(os.path.join(root, "info_processed.csv"), header=True, mode = "w", index = False)
