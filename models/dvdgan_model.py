@@ -21,9 +21,45 @@ from dvdgan.ConvGRU import ConvGRU
 from dvdgan.Normalization import SpectralNorm
 #def SpectralNorm(x): 
 #    return x
-from .dvdgansimple_model import GRUEncoderDecoderNet as SimpleDvdGenerator
+from .dvdgansimple_model import GRUEncoderDecoderNet
 #import torch.nn.utils.spectral_norm as SpectralNorm
 
+class LHC(nn.Module):
+
+    def __init__(self, latent_dim=4, ch=32, enc_ch = 4, n_frames=48, bn=True):
+        super().__init__()
+        self.latent_dim = latent_dim
+        self.ch = ch
+        self.n_frames = n_frames -1 # first frame is just input frame
+        self.n_steps = math.ceil(self.n_frames / step_frames)
+
+        encoder = []
+
+        def conv_relu(in_dims, out_dims, stride = 1): 
+            layer = [nn.Conv2d(in_dims, out_dims, kernel_size=3, bias=True, padding=1, stride=stride, padding_mode="reflect")]
+            layer += [nn.LeakyReLU(0.2)]
+            return layer
+
+        encoder += conv_relu(image_nc,ngf, stride = 1)
+        encoder += conv_relu(ngf,ngf*2, stride = 1)
+        encoder += [nn.AvgPool2d()]
+
+
+
+
+    def forward(self, x):
+        x = x * 2 - 1
+        if len(x.shape) == 5: # B x T x 3 x W x H -> B x 3 x W x H (first frame - other methods might use more frames -- esp for easier training) 
+            x = x[:,0,...]
+
+
+
+
+
+        y = torch.tanh(y)
+
+        y = (y+1) / 2.0 #[-1,1] -> [0,1] for vis 
+        return y 
 
 class DvdConditionalGenerator(nn.Module):
 
@@ -240,17 +276,17 @@ class DvdGanModel(BaseModel):
 
       #  netG = DvdConditionalGenerator(n_frames = self.nframes, ch = 32, enc_ch = 16, latent_dim = 8, step_frames = self.opt.unroll_frames, bn = bn)
       #  netG = DvdGenerator(n_frames = self.nframes, ch = 8, n_class=1, in_dim = self.in_dim)
-        netG = SimpleDvdGenerator(self.nframes,opt.input_nc,ngf = 32, hidden_dims=64, enc2hidden = True)
+        netG = GRUEncoderDecoderNet(self.nframes,opt.input_nc,ngf = 64, hidden_dims=32, enc2hidden = False)
         self.netG = networks.init_net(netG, opt.init_type, opt.init_gain, self.gpu_ids)
 
         if self.isTrain:
             self.conditional = False
             #default chn = 128
-            netDs = DvdSpatialDiscriminator(chn = 16, sigmoid = not self.wgan, cgan = self.conditional)
+            netDs = DvdSpatialDiscriminator(chn = 8, sigmoid = not self.wgan, cgan = self.conditional)
             self.netDs = networks.init_net(netDs, opt.init_type, opt.init_gain, self.gpu_ids)
 
             #default chn = 128
-            netDt = DvdTemporalDiscriminator(chn = 16, sigmoid = not self.wgan)
+            netDt = DvdTemporalDiscriminator(chn = 8, sigmoid = not self.wgan)
             self.netDt = networks.init_net(netDt, opt.init_type, opt.init_gain, self.gpu_ids)
 
             # define loss functions

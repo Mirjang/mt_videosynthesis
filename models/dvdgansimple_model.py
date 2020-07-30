@@ -111,6 +111,8 @@ class GRUEncoderDecoderNet(nn.Module):
 
         encoder += conv_relu(image_nc,ngf, stride = 1)
         encoder += conv_relu(ngf,ngf*2, stride = 1)
+        encoder += conv_relu(ngf*2,ngf*2, stride = 1)
+
       #  encoder += [nn.BatchNorm2d(32)]
       #  encoder += conv_relu(32,64, stride = 1)
       #  encoder += conv_relu(ngf*2,ngf*4)
@@ -127,12 +129,11 @@ class GRUEncoderDecoderNet(nn.Module):
         self.gru = ConvGRUCell(ngf*2, hidden_dims, (3,3), True)
         decoder = []
         #decoder += [nn.Upsample(scale_factor=2)]
-        decoder += conv_relu(hidden_dims,ngf)
-        decoder += conv_relu(ngf,ngf//2)
-        decoder += conv_relu(ngf//2,ngf//4)
+        decoder += conv_relu(hidden_dims,ngf*2)
+        decoder += conv_relu(ngf*2,ngf)
 
         #decoder += [nn.Upsample(scale_factor=2)]
-        decoder += [nn.Conv2d(ngf//4, image_nc, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="reflect")]
+        decoder += [nn.Conv2d(ngf, image_nc, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="reflect")]
         decoder += [nn.Tanh()]
         self.decoder = nn.Sequential(*decoder)
 
