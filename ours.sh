@@ -1,7 +1,7 @@
 set -ex
 
 # GPU
-GPU_ID=3
+GPU_ID=2
 
 if [[ $(nvidia-smi | grep "^|    $GPU_ID    ") ]]; then
     read -p "GPU currently in use, continue? " -n 1 -r
@@ -14,7 +14,7 @@ fi
 
 VISDOM_PORT=8197
 
-DATASETS_DIR=/mnt/raid/patrickradner/datasets
+DATASETS_DIR=/mnt/raid/patrickradner/datasets/yt/
 CHECKPOINT_DIR=/mnt/raid/patrickradner/checkpoints
 
 
@@ -27,8 +27,8 @@ DATASET_MODE=video
 
 
 # models
-MODEL=simpleVideo
-NAME=nobndvdgan
+MODEL=dvdgansimple
+NAME==${DATASET}_${MODEL}
 DISPNAME=${DATASET}_${MODEL}
 
 # optimizer parameters
@@ -43,5 +43,5 @@ LEN=1.0
 
 FREQ=500
 #--verbose --sanity_check
-python train.py --niter 250 --continue_train --epoch 220 --epoch_count 0 --niter_decay 250 --train_mode "mixed" --clip_grads .5 --n_critic 2 --lambda_L1 20 --lambda_S 1 --lambda_T 2 --max_clip_length $LEN --skip_frames $SKIP --validation_freq 1 --validation_set split --pretrain_epochs 0 --tlg .2 --tld .8 --init_type xavier --init_gain .0002 --batch_size $BATCHSIZE --resolution $RESOLUTION --fps $FPS --dataroot $DATASETS_DIR/$DATASET --checkpoints_dir $CHECKPOINT_DIR --name $NAME --model $MODEL --dataset_mode $DATASET_MODE --gpu_ids $GPU_ID --lr $LR --display_port $VISDOM_PORT --display_env $DISPNAME --update_html_freq $FREQ --print_freq $FREQ --display_freq $FREQ
+python train.py --niter 250 --niter_decay 250 --train_mode "mixed" --clip_grads .5 --n_critic 2 --lambda_L1 20 --lambda_S 1 --lambda_T 2 --max_clip_length $LEN --skip_frames $SKIP --validation_freq 1 --validation_set split --pretrain_epochs 0 --tlg .2 --tld .8 --max_val_dataset_size 500 --init_type xavier --init_gain .0002 --batch_size $BATCHSIZE --resolution $RESOLUTION --fps $FPS --dataroot $DATASETS_DIR/$DATASET --checkpoints_dir $CHECKPOINT_DIR --name $NAME --model $MODEL --dataset_mode $DATASET_MODE --gpu_ids $GPU_ID --lr $LR --display_port $VISDOM_PORT --display_env $DISPNAME --update_html_freq $FREQ --print_freq $FREQ --display_freq $FREQ
 #python test.py --dataroot $DATASETS_DIR/$OBJECT --name $OBJECT-$MODEL --renderer $RENDERER --model $MODEL --netG unet_256 --dataset_mode aligned --norm batch --gpu_ids 0

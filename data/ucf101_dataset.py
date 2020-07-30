@@ -42,19 +42,17 @@ class UCF101Dataset(BaseDataset):
         # start = random.uniform(clip['start'], clip['end'] - self.max_clip_length)
         # end = min(start + self.max_clip_length, clip['end'])
         start = clip["start"]
-        start = random.uniform(clip['start'], clip['end'] - self.max_clip_length)
+        start = random.uniform(clip['start'], clip['end'] - (self.max_clip_length +.5)
         #end = min(clip["end"], start + self.max_clip_length * self.skip_frames)
-        end = min(start + self.max_clip_length, clip['end'])
-
+        end = min(start + self.max_clip_length+.5, clip['end']) #load .5 sek more so we dont loose the last frame due to inaccuracies or smth
 
         frames, _, info = torchvision.io.read_video(os.path.join(self.root,clip['file_name']), start, end, pts_unit="sec")
-        
         
         if frames.shape[0] < self.nframes*self.skip_frames: 
             print(f"ERROR: id: {index} has {frames.shape[0]}/{self.nframes*self.skip_frames} frames. File name: {clip['file_name']}")
             missing = self.nframes * self.skip_frames - frames.shape[0]
             frames = torch.cat([frames, frames[-1,...].repeat(missing, 1, 1, 1)])
-        
+
         if self.skip_frames>1: 
             T,C,H,W = frames.shape
             skipped = torch.zeros(self.nframes, C,H,W)
