@@ -22,42 +22,129 @@ from dvdgan.Normalization import SpectralNorm
 #def SpectralNorm(x): 
 #    return x
 from .dvdgansimple_model import GRUEncoderDecoderNet
+import models.kernels as kernels
 #import torch.nn.utils.spectral_norm as SpectralNorm
 
 class LHC(nn.Module):
 
-    def __init__(self, latent_dim=4, ch=32, enc_ch = 4, n_frames=48, bn=True):
+    def __init__(self, latent_dim=32, ngf=32,npf = 32,steps_per_frame = 1,  pd = 2, knn = 8, sample_kernel = "exp", n_frames=48, bn=True):
         super().__init__()
         self.latent_dim = latent_dim
-        self.ch = ch
         self.n_frames = n_frames -1 # first frame is just input frame
-        self.n_steps = math.ceil(self.n_frames / step_frames)
-
+        self.knn = knn
+        self.steps_per_frame = steps_per_frame
         encoder = []
 
         def conv_relu(in_dims, out_dims, stride = 1): 
             layer = [nn.Conv2d(in_dims, out_dims, kernel_size=3, bias=True, padding=1, stride=stride, padding_mode="reflect")]
-            layer += [nn.LeakyReLU(0.2)]
+            layer += [nn.ReLU(0.2)]
             return layer
 
-        encoder += conv_relu(image_nc,ngf, stride = 1)
-        encoder += conv_relu(ngf,ngf*2, stride = 1)
-        encoder += [nn.AvgPool2d()]
+        encoder =[
+            conv_relu(3,ngf, stride = 1),
+            conv_relu(ngf,ngf*2, stride = 1),
+            nn.AvgPool2d(kernel_size=2, stride=2), 
+            conv_relu(ngf*2, npf, stride=1)
+        ]
+        self.encoder = nn.Sequential(*encoder)
+        
+        rule_mlp = [
+            nn.Conv1d(npf, npf//2, kernel_size=1, bias=True), 
+            nn.ReLU(), 
+            nn.Conv1d(npf//2, npf, kernel_size=1, bias=True),
+            nn.ReLU(),
+        ]
+        self.rule_mlp = nn.Sequential(*rule_mlp)
 
+        velocity_mlp = [
+            nn.Conv1d(npf, npf//2, kernel_size=1, bias=True),
+            nn.ReLU(), 
+            nn.Conv1d(npf//2, 2, kernel_size=1, bias=True), 
+            nn.ReLU()
+        ]
+        self.velocity_mlp = nn.Sequential(*velocity_mlp)
 
+        self.distance_kernel = kernels.TruncatedExponentialKernel(sigma = .5, truncation_dist = .75)
 
+        decoder = [
+            nn.Upsample(scale_factor=2),
+            conv_relu(npf, ngf*2, stride= 1),
+            conv_relu(ngf*2, ngf, stride= 1),
+            nn.Conv2d(ngf, 3, kernel_size=3, bias=True, padding=1, stride=1, padding_mode="reflect"),  
+            nn.Tanh()
+        ]
+        self. nn.Sequential(*decoder)
+
+    def positional_encoding(self,B,W,H, device = None): 
+        step_h = 2./(H-1)
+        step_w = 2./(W-1)
+        py = torch.arange(start=-1, end=1 + step_h, step=step_h, device=device)
+        px = torch.arange(start=-1, end=1 + step_w, step=step_w, device=device)
+        assert px.shape[0] == W and py.shape[0] == H
+        px = px.unsqueeze(1).expand(1,W,H)
+        py = py.unsqueeze(0).expand(1,W,H)
+        return torch.cat([px,py], dim = 0).expand(B,-1,-1,-1)
 
     def forward(self, x):
         x = x * 2 - 1
         if len(x.shape) == 5: # B x T x 3 x W x H -> B x 3 x W x H (first frame - other methods might use more frames -- esp for easier training) 
             x = x[:,0,...]
+        first_frame = x
+    
+        x = self.encoder(x)
+        
+        B, C, W, H = x.shape          
+        y = torch.zeros((self.nframes,B,C,W,H), device = x.device)
+        num_particles = W*H
+        #x_part = x.view(B, C, W*H)
+        x_part = x
+        ref_pos = self.positional_encoding(B,W,H,device=x.device) #B,2,W,H
+        pos = ref_pos.clone()
 
+        for i in range(self.n_frames): 
+            
+            for _ in range(self.steps_per_frame):
+                # update based on neighbors
+                pos = pos.view(B,2, -1)
+                d = (pos[...,None]@pos[...,None,:]).sum(dim=1)#outer product
+                _, knn_ind = torch.topk(d, self.knn, dim = 1, largest=False, sorted=False)
+                nx_acc = 1/self.knn * x_part[knn_ind].sum(dim = 1)
+                x_part = self.rule_mlp(nx_acc)
+                
+                # compute velocity
+                v = self.velocity_mlp(x_part)
+                #integrate position
+                pos += v
+                #sample frame
+                #distance between the reference pos (element in matrix) and actual pos of the particle
+                #this is just kindof a hack so we can use std pytorch to simulate our particles
+                #ideally we would so something like (differentiable) splatting here
+                #but im lazy
+                dist = torch.sqrt(((pos - ref_pos)**2).sum(dim = 1)) # B, 1, W, H
+                kdist = self.distance_kernel(dist, scale = 1/num_particles)            
+                kdist = kdist.view(B, 1, num_particles)#.expand(B,1, num_particles, W, H) # B, 1 W*H
+                sample = torch.sum(kdist * x_part.view(B, C, num_particles), dim = 1).view(B,C,W,H) # B, C, W, H
 
+                #we are more or less accumulating neighborhood info here?
+                #but this limits us to combine part info linearly
+                #also it would require us to spawn new particles at ref_pos, 
+                # which might in the worst case not contain info
+                #and the whole thing is discontinuous
+                #so dont to this
+                #x_part = sample 
 
+                #old idea for even more discrete perticle action (prob. requires going down
+                #  to custom cuda code to implement somewhat efficiently tho, so scraped for now)
+                #pos_index = torch.round(pos * torch.tensor([W,H], device=x.device).view(1,-1,1,1))
 
+            y[i] = sample
 
-        y = torch.tanh(y)
+        y = y.permute(1,0,2,3,4) #B,T,C,W,H
 
+        y = y.view(-1, C, W, H)
+        y = self.decoder(y)
+        y = y.view(-1, self.n_frames,3, W, H) # B, T/S, C*S, W, H
+        y = torch.cat([first_frame, y], dim = 1)
         y = (y+1) / 2.0 #[-1,1] -> [0,1] for vis 
         return y 
 
