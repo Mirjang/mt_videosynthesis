@@ -356,7 +356,6 @@ class DvdGanModel(BaseModel):
         self.condition_gen = True
         self.conditional = True
         self.wgan = False
-        bn = True
         if not self.wgan: 
             self.loss_names += ['accDs_real','accDs_fake','accDt_real', 'accDt_fake']
             self.visual_names.append("activity_diag_plt")
