@@ -16,14 +16,16 @@ class VideoDataset(BaseDataset):
         #torchvision.set_video_backend("video_reader")
 
     def initialize(self, opt):
-        self.root = os.path.join(opt.dataroot, opt.phase)
+        self.root = opt.dataroot
         #no train/test splits
-        if not os.path.exists(os.path.join(opt.dataroot, opt.phase,opt.clips_file)) and os.path.exists(os.path.join(opt.dataroot, opt.clips_file)):
-            self.root = opt.dataroot
+        clips_file = opt.phase + "_" + opt.clips_file
+        if not os.path.exists(os.path.join(self.root, clips_file)):
+            clips_file = opt.clips_file
+
         self.max_clip_length = opt.max_clip_length
         self.fps = opt.fps
         self.skip_frames = opt.skip_frames
-        self.df = pd.read_csv(os.path.join(self.root,opt.clips_file))
+        self.df = pd.read_csv(os.path.join(self.root,clips_file))
         self.len = int(min(opt.max_dataset_size, self.df.shape[0]))
         self.nframes = int(opt.fps * opt.max_clip_length // opt.skip_frames)
         self.resolution = opt.resolution
