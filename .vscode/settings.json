@@ -1,5 +1,5 @@
 {
-    "python.pythonPath": "c:\\Users\\Patrick\\Anaconda3\\python.exe",
+    "python.pythonPath": "/home/patrickradner/anaconda3/bin/python",
     "python.jediEnabled": false,
     "python.languageServer": "Microsoft",
   //  "python.analysis.downloadChannel": "beta",
@@ -8,7 +8,12 @@
         "**.git": true,
         "**/.svn": true,
         "**/*.pyc": {"when": "$(basename).py"}, 
-        "**/__pycache__": true
+        "**/__pycache__": true, 
     },
-
+    "python.analysis.logLevel": "Trace",
+    "python.analysis.downloadChannel": "beta",
+    "python.linting.pylintArgs": [
+      "--generated-members=numpy.* ,torch.*"
+      ],
+      "python.linting.enabled": false,
 }

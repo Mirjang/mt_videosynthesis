@@ -99,9 +99,7 @@ if __name__ == '__main__':
             if total_steps % opt.print_freq == 0:
                 t_data = iter_start_time - iter_data_time
             visualizer.reset()
-            total_steps += opt.batch_size
-            epoch_iter += opt.batch_size
-            
+  
             model.set_input(data)
             model.optimize_parameters(epoch, verbose = verbose)
             verbose = False or opt.verbose
@@ -122,7 +120,9 @@ if __name__ == '__main__':
             #     print('saving the latest model (epoch %d, total_steps %d)' % (epoch, total_steps))
             #     save_suffix = 'iter_%d' % total_steps if opt.save_by_iter else 'latest'
             #     model.save_networks(save_suffix)
-
+            total_steps += opt.batch_size
+            epoch_iter += opt.batch_size
+            
             iter_data_time = time.time()
         if epoch % opt.save_epoch_freq == 0:
             print('saving the model at the end of epoch %d, iters %d' % (epoch, total_steps))

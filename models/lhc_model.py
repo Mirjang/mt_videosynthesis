@@ -22,140 +22,156 @@ from dvdgan.Normalization import SpectralNorm
 #def SpectralNorm(x):
 #    return x
 from .dvdgansimple_model import GRUEncoderDecoderNet
-
-
+import models.kernels as kernels
 #import torch.nn.utils.spectral_norm as SpectralNorm
 
-class DvdConditionalGenerator(nn.Module):
+class LHC(nn.Module):
 
-    def __init__(self, latent_dim=4, ch=32, enc_ch = 4, nframes=48, step_frames = 1, bn=True):
+    def __init__(self, latent_dim=32, ngf=32,npf = 32,steps_per_frame = 1, pd = 2, knn = 8, sample_kernel = "exp", nframes=48, debug= None):
         super().__init__()
-        self.step_frames = step_frames
+        self.debug = debug
         self.latent_dim = latent_dim
-        self.ch = ch
         self.nframes = nframes -1 # first frame is just input frame
-        self.n_steps = math.ceil(self.nframes / step_frames)
+        self.knn = knn
+        self.steps_per_frame = steps_per_frame
+        encoder = []
 
-        self.encoder = nn.Sequential(
-            SpectralNorm(nn.Conv2d(3, enc_ch, kernel_size=(3, 3), padding=1)),
-            GResBlock(enc_ch, enc_ch*4,n_class=1, downsample_factor = 2, bn = bn),
- #           GResBlock(2*enc_ch, 4*enc_ch, n_class=1, downsample_factor = 2, bn = bn),
-            #GResBlock(2*enc_ch, 4*enc_ch, n_class=1, downsample_factor = 2, bn = bn),
-            nn.AdaptiveAvgPool2d(latent_dim),
-            SpectralNorm(nn.Conv2d(4*enc_ch, 8*ch, kernel_size=1)),
-        )
+        def conv_relu(in_dims, out_dims, stride = 1):
+            layer = [nn.Conv2d(in_dims, out_dims, kernel_size=3, bias=True, padding=1, stride=stride, padding_mode="reflect")]
+            layer += [nn.ReLU(0.2)]
+            return layer
 
+        encoder =[
+            *conv_relu(3,ngf, stride = 1),
+            nn.AvgPool2d(kernel_size=2, stride=2),
+            *conv_relu(ngf,ngf*2, stride = 1),
+            *conv_relu(ngf*2, npf, stride=1),
+            nn.AdaptiveAvgPool2d((latent_dim,latent_dim))
+        ]
+        self.encoder = nn.Sequential(*encoder)
 
-        self.conv = nn.ModuleList([
-            #ConvGRU(8 * ch, hidden_sizes=[8 * ch, 16 * ch, 8 * ch], kernel_sizes=[3, 5, 3], n_layers=3),
-            # ConvGRU(8 * ch, hidden_sizes=[8 * ch, 8 * ch], kernel_sizes=[3, 3], n_layers=2),
-            # GResBlock(8 * ch, 8 * ch, n_class=1, upsample_factor=1),
-            # GResBlock(8 * ch, 8 * ch, n_class=1),
-            #ConvGRU(8 * ch, hidden_sizes=[8 * ch, 16 * ch, 8 * ch], kernel_sizes=[3, 5, 3], n_layers=3),
-            # ConvGRU(8 * ch, hidden_sizes=[8 * ch, 8 * ch], kernel_sizes=[3, 3], n_layers=2),
-            # GResBlock(8 * ch, 8 * ch, n_class=1, upsample_factor=1, bn = bn),
-            # GResBlock(8 * ch, 8 * ch, n_class=1, bn = bn),
-            #ConvGRU(8 * ch, hidden_sizes=[8 * ch, 16 * ch, 8 * ch], kernel_sizes=[3, 5, 3], n_layers=3),
-            ConvGRU(8 * ch, hidden_sizes=[8 * ch], kernel_sizes=3, n_layers=1),
-            GResBlock(8 * ch, 8 * ch, n_class=1, upsample_factor=2, bn = bn),
-            GResBlock(8 * ch, 4 * ch, n_class=1 ,bn = bn),
-            #ConvGRU(4 * ch, hidden_sizes=[4 * ch, 8 * ch, 4 * ch], kernel_sizes=[3, 5, 5], n_layers=3),
-            ConvGRU(4 * ch, hidden_sizes=[4 * ch], kernel_sizes=3, n_layers=1),
-            GResBlock(4 * ch, 4 * ch, n_class=1, upsample_factor=1, bn = bn),
-            GResBlock(4 * ch, 2 * ch, n_class=1, bn = bn)
-        ])
+        rule_mlp = [
+            nn.Conv1d(npf, npf//2, kernel_size=1, bias=True),
+            nn.ReLU(),
+            nn.Conv1d(npf//2, npf, kernel_size=1, bias=True),
+            nn.ReLU(),
+        ]
+        self.rule_mlp = nn.Sequential(*rule_mlp)
 
-        # TODO impl ScaledCrossReplicaBatchNorm
-        # self.ScaledCrossReplicaBN = ScaledCrossReplicaBatchNorm2d(1 * chn)
+        velocity_mlp = [
+            nn.Conv1d(npf, npf//2, kernel_size=1, bias=True),
+            nn.ReLU(),
+            nn.Conv1d(npf//2, 2, kernel_size=1, bias=True),
+            nn.Tanh()
+        ]
+        self.velocity_mlp = nn.Sequential(*velocity_mlp)
 
-        self.colorize = SpectralNorm(nn.Conv2d(2 * ch, 3, kernel_size=(3, 3), padding=1))
-        #decode 1 RNN step into multiple frames using 3x3 convs
+        #self.distance_kernel = kernels.TruncatedExponentialKernel(sigma = 1., truncation_dist = .75)
+        #self.distance_kernel = kernels.LinearKernel()
+        self.distance_kernel = kernels.ExponentialKernel(sigma = 1)
 
-        if step_frames > 1:
-            self.decoder = nn.Sequential(
-                SpectralNorm(nn.Conv3d(2*ch, 2*ch, kernel_size=(3, 3, 3), padding=1)),
-                nn.ReLU(),
-                SpectralNorm(nn.Conv3d(2*ch, 2*ch, kernel_size=(3,3,3), padding=1)),
-            )
+        decoder = [
+            nn.Upsample(scale_factor=2),
+            *conv_relu(npf, ngf*2, stride= 1),
+            *conv_relu(ngf*2, ngf, stride= 1),
+            nn.Upsample(scale_factor=2),
+            nn.Conv2d(ngf, 3, kernel_size=3, bias=True, padding=1, stride=1, padding_mode="reflect"),
+        ]
+        self.decoder = nn.Sequential(*decoder)
+
+        self.it = 0
+
+    def positional_encoding(self,B,W,H, device = None):
+        step_h = 2./(H-1)
+        step_w = 2./(W-1)
+        py = torch.arange(start=-1, end=1 + step_h, step=step_h, device=device)
+        px = torch.arange(start=-1, end=1 + step_w, step=step_w, device=device)
+        assert px.shape[0] == W and py.shape[0] == H
+        px = px.unsqueeze(1).expand(1,W,H)
+        py = py.unsqueeze(0).expand(1,W,H)
+        return torch.cat([px,py], dim = 0).expand(B,-1,-1,-1).contiguous()
 
     def forward(self, x):
         x = x * 2 - 1
-        if len(x.shape) == 5: # B x T x 3 x W x H -> B x 3 x W x H (first frame)
+        if len(x.shape) == 5: # B x T x 3 x W x H -> B x 3 x W x H (first frame - other methods might use more frames -- esp for easier training)
             x = x[:,0,...]
-
-        #y = y.view(-1, 8 * self.ch, self.latent_dim, self.latent_dim) # B x ch x ld x ld
-        y = self.encoder(x)
-
-        for k, conv in enumerate(self.conv):
-            if isinstance(conv, ConvGRU):
-
-                if k > 0:
-                    _, C, W, H = y.size()
-                    y = y.view(-1, self.n_steps, C, W, H).contiguous()
-
-                frame_list = []
-                for i in range(self.n_steps):
-                    if k == 0:
-                        if i == 0:
-                            frame_list.append(conv(y))  # T x [B x ch x ld x ld]
-                        else:
-                            frame_list.append(conv(y, frame_list[i - 1]))
-                    else:
-                        if i == 0:
-                            frame_list.append(conv(y[:,0,:,:,:].squeeze(1)))  # T x [B x ch x ld x ld]
-                        else:
-                            frame_list.append(conv(y[:,i,:,:,:].squeeze(1), frame_list[i - 1]))
-                frame_hidden_list = []
-                for i in frame_list:
-                    frame_hidden_list.append(i[-1].unsqueeze(0))
-                y = torch.cat(frame_hidden_list, dim=0) # T x B x ch x ld x ld
-
-                y = y.permute(1, 0, 2, 3, 4).contiguous() # B x T x ch x ld x ld
-                # print(y.size())
-                B, T, C, W, H = y.size()
-                y = y.view(-1, C, W, H)
-
-            elif isinstance(conv, GResBlock):
-                y = conv(y) # BT, C, W, H
-
-        y = F.relu(y)
-        BT, C, W, H = y.size()
-
-        if self.step_frames > 1:
-            y = y.view(-1, self.n_steps, C, W, H) # B, T/S, C, W, H
-            y = y.permute(0, 2, 1, 3, 4) # B, C, T/S, W, H
-
-            ysp = []
-            for y_i in torch.split(y, split_size_or_sections = 1, dim = 2):
-                y_i = F.interpolate(y_i, size = (self.step_frames,W,H))
-                y_i = self.decoder(y_i)
-                ysp.append(y_i)
-
-            y = torch.cat(ysp, dim = 2)# B, C, T, W, H
-
-        #    print(y.shape)
-        #    y = F.interpolate(y, size = (self.step_frames,W,H))
-        #     print(y.shape)
-        #    y = self.decoder(y) # B, 3, T, H, W
-            y = y.permute(0, 2, 1, 3, 4) [:,:self.nframes,...].contiguous() # B, T, C, W, H
-            _,_, C, W, H = y.size()
-            y = y.view(-1, C, W, H)
+        first_frame = x.unsqueeze(1)
+        x = self.encoder(x)
+        B, C, W, H = x.shape
+        y = torch.zeros((self.nframes,B,C,W,H), device = x.device)
+        num_particles = W*H
+        kernel_scale = 1/math.sqrt(W**2 + H**2)
+        #x_part = x.view(B, C, W*H)
+        x_part = x.view(B, C, num_particles)
+        ref_pos = self.positional_encoding(B,W,H,device=x.device) #B,2,W,H
+        pos = self.positional_encoding(B,W,H,device=x.device).view(B,2, -1)
 
 
-        y = self.colorize(y)
-        y = y.view(-1, self.nframes,3, W, H) # B, T/S, C*S, W, H
+        
+        for i in range(self.nframes):
+        #    print(f"----------------{i}-----------")
+        #    print("x: ", x_part.min().item(), x_part.max().item())#, v.min().item(), v.max().item())
+        #    assert not (x_part != x_part).any(), f"x NAN at {i}"
+        #    assert not (pos != pos).any(), f"pos NAN at {i}"
 
-        y = torch.tanh(y)
+            for _ in range(self.steps_per_frame):
+                # update based on neighbors
+                if self.knn > 1:
+                    d = (pos[...,None]@pos[...,None,:]).sum(dim=1)#outer product
+                    _, knn_ind = torch.topk(d, self.knn, dim = 1, largest=False, sorted=False)
+                    x_part = 1/self.knn * x_part[knn_ind].sum(dim = 1)
 
-        y = torch.cat([x.unsqueeze(1), y],  dim = 1)
+                # update latent info and compute velocity
+                x_part = self.rule_mlp(x_part)
+                #x_part, v = xv.split([C, 2], dim = 1)# B,C+2,WxH --> B,C,WxH; B,2,WxH
+
+                v = self.velocity_mlp(x_part)
+                #integrate position
+                pos += v #.clamp(-1e5,1e5)
+
+
+#            pos = pos.clamp(-1,1)
+            #sample frame
+            #distance between the reference pos (element in matrix) and actual pos of the particle
+            #this is just kindof a hack so we can use std pytorch to simulate our particles
+            #ideally we would so something like (differentiable) splatting here
+            #but im lazy
+           # print("v: ", v.min().item(), v.max().item())
+            pos_e = pos.view(B, 2, W, H).unsqueeze(2).expand(B,2, num_particles, W, H)
+            ref_pos_e = ref_pos.unsqueeze(2).expand(B,2, num_particles, W, H)
+            #print(pos_e.shape, ref_pos_e.shape)
+            dist = ((pos_e - ref_pos_e)**2).sum(dim = 1, keepdim = True) # B,1, WxH, W, H
+            kdist = self.distance_kernel(dist, scale = kernel_scale)
+            pd = pos_e - ref_pos_e
+           # print("p: " , pd.min().item(), pd.max().item(), (pd**2).min().item(), (pd**2).max().item())
+           # print("d: ", dist.min().item(), dist.max().item(), "NAN" if (dist != dist).any() else "")
+           # print("k: ", kdist.min().item(), kdist.max().item(), "NAN" if (kdist != kdist).any() else "")
+            
+            if i == 1 and self.debug: 
+                for x in range (32): 
+                    setattr(self.debug,f"heatmap_{x}", (dist[:,:,x,...] +1) /2 )
+        
+            #kdist = kdist.view(B, 1, num_particles)#.expand(B,1, num_particles, W, H) # B, 1 W*H
+            #print(kdist.shape, x_part.shape)
+            x_part_e = x_part.view(B, C, W, H).unsqueeze(2) # B, C, 1, W, H
+            #print(x_part_e.shape)
+            #print((kdist*x_part_e).shape)
+            sample = torch.sum(kdist * x_part_e, dim = 2)#(B, 1, W*H, W, H) * (B, C, 1, W, H) -> (B, C, W, H)
+            y[i] = sample
+
+        y = y.permute(1,0,2,3,4).contiguous() #B,T,C,W,H
+        y = y.view(-1, C, W, H)
+        y = torch.tanh(self.decoder(y))
+        *_, W, H = first_frame.shape
+        y = y.view(B, self.nframes, 3, W, H) # B, T/S, C*S, W, H
+        y = torch.cat([first_frame, y], dim = 1)
+
         y = (y+1) / 2.0 #[-1,1] -> [0,1] for vis
         return y
 
-
-
-class DvdGanModel(BaseModel):
+class LHCModel(BaseModel):
     def name(self):
-        return 'DvdGanModel'
+        return 'DHCModel'
 
     @staticmethod
     def modify_commandline_options(parser, is_train=True):
@@ -176,7 +192,6 @@ class DvdGanModel(BaseModel):
         self.opt = opt
         self.iter = 0
         self.ndsframes = opt.dvd_spatial_frames
-        self.parallell_batch_size = opt.parallell_batch_size if opt.parallell_batch_size > 0 else opt.batch_size
         assert self.nframes > self.ndsframes+1, "number of frames sampled for disc should be leq to number of total frames generated (length-1)"
         print(self.device)
 
@@ -218,6 +233,10 @@ class DvdGanModel(BaseModel):
         for i in range(self.num_display_frames):
             self.visual_names += [f"frame_{i}"]
 
+        self.num_heatmaps = 32
+        for i in range(self.num_heatmaps):
+            self.visual_names += [f"heatmap_{i}"]
+
         # specify the training losses you want to print out. The program will call base_model.get_current_losses
         self.loss_names = ['Gs', 'Gt', 'Ds', 'Dt', 'Ds_real','Ds_fake','Dt_real', 'Dt_fake']
         if opt.pretrain_epochs > 0:
@@ -229,8 +248,6 @@ class DvdGanModel(BaseModel):
             self.model_names = ['netG']
 
         # load/define networks
-        #netG = GRUEncoderDecoderNet(self.nframes,opt.input_nc,ngf = 32, hidden_dims=64, enc2hidden = True)
-        #netG = GRUDeltaNet(self.nframes,opt.input_nc,hidden_dims=64)
         #default ch = 32
         self.in_dim = 1
         self.condition_gen = True
@@ -240,16 +257,9 @@ class DvdGanModel(BaseModel):
             self.loss_names += ['accDs_real','accDs_fake','accDt_real', 'accDt_fake']
             self.visual_names.append("activity_diag_plt")
 
-      #  netG = DvdConditionalGenerator(nframes = self.nframes, ch = 32, enc_ch = 16, latent_dim = 8, step_frames = self.opt.unroll_frames, bn = bn)
-        if opt.generator == "dvdgan":
-            netG = DvdGenerator(nframes = self.nframes, ch = 8, n_class=1, in_dim = self.in_dim)
-        elif opt.generator == "dvdgansimple":
-            netG = GRUEncoderDecoderNet(self.nframes,opt.input_nc,ngf = 64, hidden_dims=32, enc2hidden = False)
-        elif opt.generator == "trajgru": 
-            netG = GRUEncoderDecoderNet(self.nframes,opt.input_nc,ngf = 64, hidden_dims=32, enc2hidden = False, trajgru=True)
+  
+        netG = LHC(latent_dim=32, ngf=32,npf = 64,steps_per_frame = 1, pd = 2, knn = 0, sample_kernel = "exp", nframes=self.nframes, debug = self)
 
-        else:
-            assert False, f"unknown generator model specified: {opt.generator}!"
         self.netG = networks.init_net(netG, opt.init_type, opt.init_gain, self.gpu_ids)
 
         if self.isTrain:
@@ -280,9 +290,7 @@ class DvdGanModel(BaseModel):
 
             self.optimizer_Dt = torch.optim.Adam(self.netDt.parameters(), lr=opt.lr * 1, betas=(opt.beta1, 0.999))
             self.optimizers.append(self.optimizer_Dt)
-        self.loss_Gs = 0
-        self.loss_Gt = 0
-        self.loss_G_L1 = 0
+
 
     def set_input(self, input):
         self.target_video = input['VIDEO'].to(self.device).permute(0,1,4,2,3).float() / 255.0 #normalize to [0,1] for vis and stuff
@@ -294,30 +302,22 @@ class DvdGanModel(BaseModel):
         _, T, *_ = self.target_video.shape
         self.target_video = self.target_video[:, :min(T,self.nframes),...]
 
-    def forward(self, frame_length = -1, train = True, sub_batch = 0):
+    def forward(self, frame_length = -1, train = True):
         if hasattr(self.netG, "nFrames"):
             self.netG.nFrames = frame_length if frame_length>0 else self.nframes
-        lbi = sub_batch * self.parallell_batch_size #lower batch index
-        ubi = min(lbi + self.parallell_batch_size, self.input.size(0))
         if train and self.condition_gen:
-            video = self.netG(self.target_video[lbi:ubi,:random.randrange(*self.train_range),...])
+            video = self.netG(self.target_video[:,:random.randrange(*self.train_range),...])
         else:
-            video = self.netG(self.input[lbi:ubi,...])
+            video = self.netG(self.input)
         self.predicted_video = video
         #print(video.shape, self.target_video.shape)
-        vis = torch.cat([self.predicted_video[:, :self.nframes,...], self.target_video[lbi:ubi,...]], dim = 4)
-        
-        if sub_batch == 0: 
-            self.prediction_target_video = vis
+        self.prediction_target_video = torch.cat([self.predicted_video[:, :self.nframes,...], self.target_video], dim = 4)
 
-            for i in range(self.num_display_frames//2):
-                setattr(self,f"frame_{i}", self.predicted_video[:,i,...] )
-            for i in range(self.num_display_frames//2):
-                ith_last = self.num_display_frames//2 -i +1
-                setattr(self,f"frame_{i + self.num_display_frames//2}", self.predicted_video[:,-ith_last,...] )
-        else: 
-            self.prediction_target_video = torch.cat([self.prediction_target_video, vis], dim = 0)
-
+        for i in range(self.num_display_frames//2):
+            setattr(self,f"frame_{i}", self.predicted_video[:,i,...] )
+        for i in range(self.num_display_frames//2):
+            ith_last = self.num_display_frames//2 -i +1
+            setattr(self,f"frame_{i + self.num_display_frames//2}", self.predicted_video[:,-ith_last,...] )
         #video = video * 256
         #return video.permute(0,1,3,4,2)
 
@@ -526,75 +526,54 @@ class DvdGanModel(BaseModel):
 
         return False
 
-
     def optimize_parameters(self, epoch_iter, verbose = False):
         self.iter += 1
         verbose = verbose or self.opt.verbose
         #Te = self.epoch_frame_length(epoch_iter)
         Te = self.nframes
-        B, TT,*_ = self.target_video.shape
+        self.forward(frame_length=Te)
+        _, T,*_ = self.predicted_video.shape
+        _, TT,*_ = self.target_video.shape
+        self.loss_Gs = 0
+        self.loss_Gt = 0
+        self.loss_G_L1 = 0
 
-        acc_update_Ds = False
-        acc_update_Dt = False
-        acc_update_G = False
+        T = min(T,TT,Te) # just making sure to cut target if we didnt predict all the frames and to cut prediction, if we predicted more than target (i.e. we already messed up somewhere)
 
-        for sub_batch in range(math.ceil(B/self.parallell_batch_size)): 
-            self.forward(frame_length=Te, sub_batch=sub_batch)
-            _, T,*_ = self.predicted_video.shape
+        #update Discriminator(s)
+        self.set_requires_grad(self.netDs, True)
+        self.optimizer_Ds.zero_grad()
+        update_Ds = self.backward_Ds_wgan() if self.wgan else self.backward_Ds(train_threshold = self.opt.tld)
+        if verbose:
+            diagnose_network(self.netDs,"Ds")
 
-            T = min(T,TT,Te) # just making sure to cut target if we didnt predict all the frames and to cut prediction, if we predicted more than target (i.e. we already messed up somewhere)
-
-            #update Discriminator(s)
-            self.set_requires_grad(self.netDs, True)
-            self.optimizer_Ds.zero_grad()
-            update_Ds = self.backward_Ds_wgan() if self.wgan else self.backward_Ds(train_threshold = self.opt.tld)
-            if verbose:
-                diagnose_network(self.netDs,"Ds")
-
-            if update_Ds:
-                acc_update_Ds = True
-            else:
-                pass #clear graph? 
-    
-
-            self.set_requires_grad(self.netDt, True)
-            self.optimizer_Dt.zero_grad()
-            update_Dt = self.backward_Dt_wgan() if self.wgan else self.backward_Dt(train_threshold = self.opt.tld)
-
-            if verbose:
-                diagnose_network(self.netDt,"Dt")
-            if update_Dt:
-                acc_update_Dt = True
-            else: 
-                pass #clear graph? 
-
-            # update Generator every n_critic steps
-            if self.iter % self.opt.n_critic == 0:
-                self.set_requires_grad(self.netDs, False)
-                self.set_requires_grad(self.netDt, False)
-
-                self.set_requires_grad(self.netG, True)
-                self.optimizer_G.zero_grad()
-                update_G = self.backward_G_wgan(epoch_iter, train_threshold = self.opt.tlg) if self.wgan else self.backward_G(epoch_iter, train_threshold = self.opt.tlg)
-                if verbose:
-                    diagnose_network(self.netG, "netG")
-                if update_G:
-                    acc_update_G = True
-                else: 
-                    pass # clear graph? 
-
-        if acc_update_Ds:
+        if update_Ds:
             nn.utils.clip_grad_norm_(self.netDs.parameters(), self.opt.clip_grads)
             self.optimizer_Ds.step()
-            
-        if acc_update_Dt: 
+
+        self.set_requires_grad(self.netDt, True)
+        self.optimizer_Dt.zero_grad()
+        update_Dt = self.backward_Dt_wgan() if self.wgan else self.backward_Dt(train_threshold = self.opt.tld)
+
+        if verbose:
+            diagnose_network(self.netDt,"Dt")
+        if update_Dt:
             nn.utils.clip_grad_norm_(self.netDt.parameters(), self.opt.clip_grads)
             self.optimizer_Dt.step()
 
-        if acc_update_G: 
-            nn.utils.clip_grad_norm_(self.netG.parameters(), self.opt.clip_grads)
-            self.optimizer_G.step()
+        # update Generator every n_critic steps
+        if self.iter % self.opt.n_critic == 0:
+            self.set_requires_grad(self.netDs, False)
+            self.set_requires_grad(self.netDt, False)
 
+            self.set_requires_grad(self.netG, True)
+            self.optimizer_G.zero_grad()
+            update_G = self.backward_G_wgan(epoch_iter, train_threshold = self.opt.tlg) if self.wgan else self.backward_G(epoch_iter, train_threshold = self.opt.tlg)
+            if verbose:
+                diagnose_network(self.netG, "netG")
+            if update_G:
+                nn.utils.clip_grad_norm_(self.netG.parameters(), self.opt.clip_grads)
+                self.optimizer_G.step()
 
         self.activity_diag_plt["X"] = list(range(self.activity_diag.shape[0]))
         self.activity_diag_plt["Y"] = self.activity_diag

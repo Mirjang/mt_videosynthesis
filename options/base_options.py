@@ -58,6 +58,9 @@ class BaseOptions():
         parser.add_argument('--resolution', type=int, default=64, help='spatial resolution')
         parser.add_argument('--unroll_frames', type=int, default=1, help='compute N frames per GRU unroll')
 
+        parser.add_argument('--generator', type=str, default="dvdgansimple", help='generator type: dvdgansimple|dvdgan|trajgru|lhc')
+        parser.add_argument('--parallell_batch_size', type=int, default=None, help='number of samples processed in parallell, must be <= batch_size')
+ 
 
         self.initialized = True
         return parser

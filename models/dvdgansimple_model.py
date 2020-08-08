@@ -11,6 +11,7 @@ from .networks import VGG16, UnetSkipConnectionBlock, ConvLSTMCell, ConvGRUCell
 from .networks import NLayerDiscriminator
 from collections import OrderedDict,namedtuple
 from torchvision import models
+from trajgru.trajgru import TrajGRU
 
 
 def gram_matrix(y):
@@ -96,7 +97,7 @@ class SpatialDiscriminatorNet(nn.Module):
 
 
 class GRUEncoderDecoderNet(nn.Module): 
-    def __init__(self, nframes, image_nc=3, ngf = 32, hidden_dims = 16, enc2hidden = False):
+    def __init__(self, nframes, image_nc=3, ngf = 32, hidden_dims = 16, enc2hidden = False, trajgru = False):
         super(GRUEncoderDecoderNet, self).__init__()
         self.nframes = nframes
         self.image_nc = image_nc
@@ -126,7 +127,12 @@ class GRUEncoderDecoderNet(nn.Module):
         else: 
             self.enc2hidden = None
 
-        self.gru = ConvGRUCell(ngf*2, hidden_dims, (3,3), True)
+        if trajgru: 
+            self.gru = TrajGRU(ngf*2, hidden_dims, )
+        else: 
+            self.gru = ConvGRUCell(ngf*2, hidden_dims, (3,3), True)
+
+
         decoder = []
         #decoder += [nn.Upsample(scale_factor=2)]
         decoder += conv_relu(hidden_dims,ngf*2)
