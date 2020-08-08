@@ -206,14 +206,6 @@ class DvdGanModel(BaseModel):
                     "Y":self.activity_diag,
                     "X":[0]
             }
-        # self.lossperframe_plt = {"opts": {
-        #             'title': "Loss per frame",
-        #             #'legend': ["L1 loss per frame"],
-        #             'xlabel': 'frame',
-        #             'ylabel': 'loss',
-        #             } ,
-        #   #          "Y":np.array((1,1)), "X":np.array((1,1))
-        #     }
 
         for i in range(self.num_display_frames):
             self.visual_names += [f"frame_{i}"]
