@@ -32,7 +32,7 @@ class BaseOptions():
         parser.add_argument('--model', type=str, default='simpleVideo', help='chooses which model to use.')
         parser.add_argument('--epoch', type=str, default='latest', help='which epoch to load? set to latest to use latest cached model')
         parser.add_argument('--load_iter', type=int, default='0', help='which iteration to load? if load_iter > 0, the code will load models by iter_[load_iter]; otherwise, the code will load models by [epoch]')
-        parser.add_argument('--num_threads', default=4, type=int, help='# threads for loading data')
+        parser.add_argument('--num_threads', default=6, type=int, help='# threads for loading data')
         parser.add_argument('--checkpoints_dir', type=str, default='../checkpoints', help='models are saved here')
         parser.add_argument('--norm', type=str, default='instance', help='instance normalization or batch normalization')
         parser.add_argument('--serial_batches', action='store_true', help='if true, takes images in order to make batches, otherwise takes them randomly')
@@ -60,7 +60,9 @@ class BaseOptions():
 
         parser.add_argument('--generator', type=str, default="dvdgansimple", help='generator type: dvdgansimple|dvdgan|trajgru|lhc')
         parser.add_argument('--parallell_batch_size', type=int, default=None, help='number of samples processed in parallell, must be <= batch_size')
- 
+        parser.add_argument('--use_segmentation', action='store_true', help='Use DeepLab V3 (VOC) precomputed semantic segmentation as additional input')
+        parser.add_argument('--num_segmentation_classes',  type=int, default=182, help='number of classes if sem seg is used')
+
 
         self.initialized = True
         return parser

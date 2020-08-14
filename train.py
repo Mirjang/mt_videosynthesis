@@ -28,6 +28,7 @@ if __name__ == '__main__':
     if opt.validation_freq>0:
         opt_val = copy.deepcopy(opt)
         opt_val.phase = opt.validation_set
+        opt_val.max_dataset_site = opt.max_val_dataset_size
         if opt.validation_set == "split": 
             torch.manual_seed(42)
             validation_loader, data_loader = SplitDataLoader(data_loader, copy.deepcopy(opt), opt_val, length_first = opt.max_val_dataset_size)
@@ -52,7 +53,7 @@ if __name__ == '__main__':
         verbose = True
 
         #validation
-        if (opt.validation_freq>0 and epoch % opt.validation_freq == 0):# or epoch == 0: # do val first so we dont get nasty crashes after hours of training
+        if (opt.validation_freq>0 and epoch % opt.validation_freq == 0):# or epoch == 1: # do val first so we dont get nasty crashes after hours of training
             iter_start_time = time.time()
             val_losses = {}
             visuals = {}

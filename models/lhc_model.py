@@ -67,8 +67,8 @@ class LHC(nn.Module):
         self.velocity_mlp = nn.Sequential(*velocity_mlp)
 
         #self.distance_kernel = kernels.TruncatedExponentialKernel(sigma = 1., truncation_dist = .75)
-        #self.distance_kernel = kernels.LinearKernel()
-        self.distance_kernel = kernels.ExponentialKernel(sigma = 1)
+        self.distance_kernel = kernels.LinearKernel()
+        #self.distance_kernel = kernels.ExponentialKernel(sigma = 1)
 
         decoder = [
             nn.Upsample(scale_factor=2),
@@ -81,7 +81,7 @@ class LHC(nn.Module):
 
         self.it = 0
 
-    def positional_encoding(self,B,W,H, device = None):
+    def uniform_grid(self,B,W,H, device = None):
         step_h = 2./(H-1)
         step_w = 2./(W-1)
         py = torch.arange(start=-1, end=1 + step_h, step=step_h, device=device)
@@ -103,8 +103,8 @@ class LHC(nn.Module):
         kernel_scale = 1/math.sqrt(W**2 + H**2)
         #x_part = x.view(B, C, W*H)
         x_part = x.view(B, C, num_particles)
-        ref_pos = self.positional_encoding(B,W,H,device=x.device) #B,2,W,H
-        pos = self.positional_encoding(B,W,H,device=x.device).view(B,2, -1)
+        ref_pos = self.uniform_grid(B,W,H,device=x.device) #B,2,W,H
+        pos = self.uniform_grid(B,W,H,device=x.device).view(B,2, -1)
 
 
         
@@ -142,15 +142,14 @@ class LHC(nn.Module):
             #print(pos_e.shape, ref_pos_e.shape)
             dist = ((pos_e - ref_pos_e)**2).sum(dim = 1, keepdim = True) # B,1, WxH, W, H
             kdist = self.distance_kernel(dist, scale = kernel_scale)
-            pd = pos_e - ref_pos_e
+           # pd = pos_e - ref_pos_e
            # print("p: " , pd.min().item(), pd.max().item(), (pd**2).min().item(), (pd**2).max().item())
            # print("d: ", dist.min().item(), dist.max().item(), "NAN" if (dist != dist).any() else "")
            # print("k: ", kdist.min().item(), kdist.max().item(), "NAN" if (kdist != kdist).any() else "")
             
-            if i == 1 and self.debug: 
-                for x in range (32): 
-                    setattr(self.debug,f"heatmap_{x}", (dist[:,:,x,...] +1) /2 )
-        
+            if self.debug: 
+                for x in range (4): 
+                    setattr(self.debug,f"heatmap_{x + 4*i}", (dist[:,:,x,...] +1) /8 )
             #kdist = kdist.view(B, 1, num_particles)#.expand(B,1, num_particles, W, H) # B, 1 W*H
             #print(kdist.shape, x_part.shape)
             x_part_e = x_part.view(B, C, W, H).unsqueeze(2) # B, C, 1, W, H
@@ -235,7 +234,7 @@ class LHCModel(DvdGanModel):
         for i in range(self.num_display_frames):
             self.visual_names += [f"frame_{i}"]
 
-        self.num_heatmaps = 32
+        self.num_heatmaps = self.nframes * 4 -4
         for i in range(self.num_heatmaps):
             self.visual_names += [f"heatmap_{i}"]
 

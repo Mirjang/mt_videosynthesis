@@ -29,13 +29,17 @@ class VideoDataset(BaseDataset):
         self.len = int(min(opt.max_dataset_size, self.df.shape[0]))
         self.nframes = int(opt.fps * opt.max_clip_length // opt.skip_frames)
         self.resolution = opt.resolution
-
+        print(f"nframes: {self.nframes}")
         self.augmentation = transforms.Compose([
           #  torchvision.transforms.ColorJitter(brightness=.1, contrast=.1, saturation=.1, hue=.1),
-            video_transforms.RandomCrop((self.resolution,self.resolution)),
+           # video_transforms.RandomCrop((self.resolution,self.resolution)),
             video_transforms.RandomHorizontalFlip(),
             volume_transforms.ClipToTensor(),
         ])
+
+        self.use_segmentation = opt.use_segmentation
+        if opt.use_segmentation: 
+            pass
 
     def __len__(self): 
         return self.len
@@ -58,11 +62,15 @@ class VideoDataset(BaseDataset):
                 skipped[i] = frames[i*self.skip_frames]
             frames = skipped
         frames = frames[:self.nframes,...].float()
+        frames = F.interpolate(frames.permute(0,3,1,2), size = (self.resolution, self.resolution), mode = "bilinear", align_corners=False).permute(0,2,3,1)
 
         if self.augmentation: 
             frames = self.augmentation(frames.numpy()).permute(1,2,3,0) *255
-        else: 
-            frames = F.interpolate(frames.permute(0,3,1,2), size = (self.resolution, self.resolution), mode = "bilinear", align_corners=False).permute(0,2,3,1)
-        return {'VIDEO':frames}
+        out = {'VIDEO':frames}
+        if self.use_segmentation: 
+           # out['SEGMENTATION'] = 
+            pass
+
+        return out
 
 

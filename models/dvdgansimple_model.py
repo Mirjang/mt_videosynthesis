@@ -12,7 +12,7 @@ from .networks import NLayerDiscriminator
 from collections import OrderedDict,namedtuple
 from torchvision import models
 from trajgru.trajgru import TrajGRU
-
+from dvdgan.GResBlock import GResBlock
 
 def gram_matrix(y):
     (b, ch, h, w) = y.size()
