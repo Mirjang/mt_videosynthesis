@@ -22,6 +22,13 @@ if __name__ == '__main__':
     if opt.sanity_check: 
         sanity_check(opt)
 
+    batch_size = opt.batch_size
+    parallell_batch_size = opt.parallell_batch_size if opt.parallell_batch_size > 0 else opt.batch_size
+    opt.batch_size = parallell_batch_size
+    n_acc_batches = batch_size // parallell_batch_size
+    opt.n_acc_batches = n_acc_batches
+    assert batch_size % parallell_batch_size == 0, "Batch size should be divisible by parallell batch size"
+    
     data_loader = CreateDataLoader(copy.deepcopy(opt))
 
     validation_size=0
@@ -61,7 +68,7 @@ if __name__ == '__main__':
                 model.set_input(data) 
                 torch.cuda.synchronize()                
                 model.test()
-                current_losses, visuals = model.compute_losses()
+                current_losses, visuals = model.compute_validation_losses()
                 #current_losses = model.get_current_losses()
                 # avg. validation loss
                 val_losses = {key: val_losses.get(key, 0) + current_losses.get(key, 0) / validation_size
@@ -95,21 +102,24 @@ if __name__ == '__main__':
             if os.path.exists(abort_file): 
                 exit("Abort using file: " + abort_file)
 
-
             iter_start_time = time.time()
             if total_steps % opt.print_freq == 0:
                 t_data = iter_start_time - iter_data_time
             visualizer.reset()
   
             model.set_input(data)
-            model.optimize_parameters(epoch, verbose = verbose)
+            model.compute_losses(epoch, verbose = verbose)
+
+            if i % n_acc_batches: # accumulate gradients for less noisy updates
+                model.optimize_parameters(epoch, verbose = verbose)
+
             verbose = False or opt.verbose
             
             if total_steps % opt.display_freq == 0:
                 save_result = total_steps % opt.update_html_freq == 0
                 visualizer.display_current_results(model.get_current_visuals(), epoch, save_result)
 
-            if total_steps % (opt.print_freq * opt.batch_size) == 0:
+            if total_steps % (opt.print_freq) == 0:
                 print(opt.name)
                 losses = model.get_current_losses()
                 t = (time.time() - iter_start_time) / opt.batch_size

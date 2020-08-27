@@ -25,6 +25,32 @@ from .dvdgansimple_model import GRUEncoderDecoderNet
 import models.kernels as kernels
 #import torch.nn.utils.spectral_norm as SpectralNorm
 
+# def GGDown(ch, bn = False, weight_norm = None): 
+#     return nn.Sequential(*[GResBlock(ch, ch, kernel_size=(3,3), downsample_factor=1, upsample_factor=1, bn=bn, weight_norm=weight_norm),
+#     nn.ReLU(), 
+#     GResBlock(ch, ch*2, kernel_size=(3,3), downsample_factor=2, bn=bn, weight_norm=weight_norm),
+#     nn.ReLU()])
+
+# def GGUp(ch, bn = False, weight_norm = None): 
+#     return nn.Sequential(*[GResBlock(ch, ch, kernel_size=(3,3), downsample_factor=1, upsample_factor=1, bn=bn, weight_norm=weight_norm),
+#     nn.ReLU(), 
+#     GResBlock(ch, ch//2, kernel_size=(3,3), upsample_factor=2, bn=bn, weight_norm=weight_norm),
+#     nn.ReLU()])
+
+def GGDown(ch, bn = False, weight_norm = SpectralNorm): 
+    return nn.Sequential(*[
+    nn.Conv2d(ch, ch*2, kernel_size=(3,3), stride = 1, padding = 1),
+    nn.ReLU(),
+    nn.AvgPool2d(2,2),
+    ]) 
+
+def GGUp(ch, bn = False, weight_norm = SpectralNorm): 
+    return nn.Sequential(*[
+    nn.Conv2d(ch, ch//2, kernel_size=(3,3), stride = 1, padding = 1),
+    nn.ReLU(),
+    nn.Upsample(scale_factor=2),
+    ]) 
+
 class LHC(nn.Module):
 
     def __init__(self, latent_dim=32, ngf=32,npf = 32,steps_per_frame = 1, pd = 2, knn = 8, sample_kernel = "exp", nframes=48, debug= None):
@@ -38,13 +64,15 @@ class LHC(nn.Module):
 
         def conv_relu(in_dims, out_dims, stride = 1):
             layer = [nn.Conv2d(in_dims, out_dims, kernel_size=3, bias=True, padding=1, stride=stride, padding_mode="reflect")]
-            layer += [nn.ReLU(0.2)]
+            layer += [nn.ReLU()]
             return layer
 
         encoder =[
             *conv_relu(3,ngf, stride = 1),
-            nn.AvgPool2d(kernel_size=2, stride=2),
-            *conv_relu(ngf,ngf*2, stride = 1),
+            GGDown(ngf), #-> ngf*2
+            nn.ReLU(), 
+         #   GGDown(ngf*2),  #-> ngf*4
+         #   nn.ReLU(), 
             *conv_relu(ngf*2, npf, stride=1),
             nn.AdaptiveAvgPool2d((latent_dim,latent_dim))
         ]
@@ -72,9 +100,11 @@ class LHC(nn.Module):
 
         decoder = [
             nn.Upsample(scale_factor=2),
-            *conv_relu(npf, ngf*2, stride= 1),
-            *conv_relu(ngf*2, ngf, stride= 1),
-            nn.Upsample(scale_factor=2),
+            *conv_relu(npf,ngf*2),
+          #  GGUp(ngf*4), #-> ngf*2
+          #  nn.ReLU(), 
+            GGUp(ngf*2),  #-> ngf
+            nn.ReLU(), 
             nn.Conv2d(ngf, 3, kernel_size=3, bias=True, padding=1, stride=1, padding_mode="reflect"),
         ]
         self.decoder = nn.Sequential(*decoder)
@@ -122,12 +152,12 @@ class LHC(nn.Module):
                     x_part = 1/self.knn * x_part[knn_ind].sum(dim = 1)
 
                 # update latent info and compute velocity
-                x_part = self.rule_mlp(x_part)
+                #x_part = self.rule_mlp(x_part)
                 #x_part, v = xv.split([C, 2], dim = 1)# B,C+2,WxH --> B,C,WxH; B,2,WxH
 
                 v = self.velocity_mlp(x_part)
                 #integrate position
-                pos += v #.clamp(-1e5,1e5)
+               # pos += v #.clamp(-1e5,1e5)
 
 
 #            pos = pos.clamp(-1,1)
@@ -149,7 +179,7 @@ class LHC(nn.Module):
             
             if self.debug: 
                 for x in range (4): 
-                    setattr(self.debug,f"heatmap_{x + 4*i}", (dist[:,:,x,...] +1) /8 )
+                    setattr(self.debug,f"heatmap_{x + 4*i}", (dist[:,:,x,...].detach().cpu() +1) /8 )
             #kdist = kdist.view(B, 1, num_particles)#.expand(B,1, num_particles, W, H) # B, 1 W*H
             #print(kdist.shape, x_part.shape)
             x_part_e = x_part.view(B, C, W, H).unsqueeze(2) # B, C, 1, W, H
@@ -239,7 +269,7 @@ class LHCModel(DvdGanModel):
             self.visual_names += [f"heatmap_{i}"]
 
         # specify the training losses you want to print out. The program will call base_model.get_current_losses
-        self.loss_names = ['Gs', 'Gt', 'Ds', 'Dt', 'Ds_real','Ds_fake','Dt_real', 'Dt_fake']
+        self.loss_names = ['Gs', 'Gt', 'Ds', 'Dt']
         if opt.pretrain_epochs > 0:
             self.loss_names.append('G_L1')
         # specify the models you want to save to the disk. The program will call base_model.save_networks and base_model.load_networks
@@ -259,7 +289,7 @@ class LHCModel(DvdGanModel):
             self.visual_names.append("activity_diag_plt")
 
   
-        netG = LHC(latent_dim=32, ngf=64,npf = 128,steps_per_frame = 1, pd = 2, knn = 0, sample_kernel = "exp", nframes=self.nframes, debug = self)
+        netG = LHC(latent_dim=32, ngf=16,npf = 128,steps_per_frame = 1, pd = 2, knn = 0, sample_kernel = "exp", nframes=self.nframes, debug = self)
 
         self.netG = networks.init_net(netG, opt.init_type, opt.init_gain, self.gpu_ids)
 
@@ -282,8 +312,8 @@ class LHCModel(DvdGanModel):
 
             # initialize optimizers
             self.optimizers = []
-            #self.optimizer_G = torch.optim.SGD(self.netG.parameters(), opt.lr)
-            self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
+            self.optimizer_G = torch.optim.SGD(self.netG.parameters(), opt.lr)
+            #self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizers.append(self.optimizer_G)
 
             self.optimizer_Ds = torch.optim.Adam(self.netDs.parameters(), lr=opt.lr * 1, betas=(opt.beta1, 0.999))
@@ -294,4 +324,10 @@ class LHCModel(DvdGanModel):
         self.loss_Gs = 0
         self.loss_Gt = 0
         self.loss_G_L1 = 0
+        self.loss_Ds = 0
+        self.loss_Dt = 0
+        self.loss_accDs_fake = 0
+        self.loss_accDs_real = 0
+        self.loss_accDt_real = 0 
+        self.loss_accDt_fake = 0
 

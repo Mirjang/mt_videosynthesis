@@ -103,48 +103,60 @@ class GRUEncoderDecoderNet(nn.Module):
         self.image_nc = image_nc
         self.hidden_dims = hidden_dims  
 
-        encoder = []
-
+        # encoder = []
+        
         def conv_relu(in_dims, out_dims, stride = 1): 
             layer = [nn.Conv2d(in_dims, out_dims, kernel_size=3, bias=True, padding=1, stride=stride, padding_mode="reflect")]
             layer += [nn.LeakyReLU(0.2)]
             return layer
 
-        encoder += conv_relu(image_nc,ngf, stride = 1)
-        encoder += conv_relu(ngf,ngf*2, stride = 1)
-        encoder += conv_relu(ngf*2,ngf*2, stride = 1)
+        # encoder += conv_relu(image_nc,ngf, stride = 1)
+        # encoder += conv_relu(ngf,ngf*2, stride = 1)
+        # encoder += conv_relu(ngf*2,ngf*2, stride = 1)
+        # self.encoder = nn.Sequential(*encoder)
+        self.encoder = nn.Sequential(*[
+            GResBlock(image_nc, ngf, kernel_size=(3,3), downsample_factor=2),
+            nn.ReLU(), 
+            GResBlock(ngf, ngf*2, kernel_size=(3,3), downsample_factor=2),
+            nn.ReLU(), 
+            GResBlock(ngf*2, ngf*4, kernel_size=(3,3), downsample_factor=2),
+            nn.ReLU(), 
+        ])
 
-      #  encoder += [nn.BatchNorm2d(32)]
-      #  encoder += conv_relu(32,64, stride = 1)
-      #  encoder += conv_relu(ngf*2,ngf*4)
-
-
-        self.encoder = nn.Sequential(*encoder)
         
         if enc2hidden:
-            enc2hidden = conv_relu(ngf*2,hidden_dims)
-            self.enc2hidden = nn.Sequential(*enc2hidden)
+            self.enc2hidden = nn.Sequential(*[
+                GResBlock(ngf*4,hidden_dims, kernel_size=(3,3), upsample_factor=1),
+                nn.ReLU(),
+            ])
         else: 
             self.enc2hidden = None
 
         if trajgru: 
-            self.gru = TrajGRU(ngf*2, hidden_dims, )
+            self.gru = TrajGRU(ngf*4, hidden_dims, )
         else: 
-            self.gru = ConvGRUCell(ngf*2, hidden_dims, (3,3), True)
+            self.gru = ConvGRUCell(ngf*4, hidden_dims, (3,3), True)
 
 
-        decoder = []
-        #decoder += [nn.Upsample(scale_factor=2)]
-        decoder += conv_relu(hidden_dims,ngf*2)
-        decoder += conv_relu(ngf*2,ngf)
+        # decoder = []
+        # #decoder += [nn.Upsample(scale_factor=2)]
+        # decoder += conv_relu(hidden_dims,ngf*2)
+        # decoder += conv_relu(ngf*2,ngf)
 
-        #decoder += [nn.Upsample(scale_factor=2)]
-        decoder += [nn.Conv2d(ngf, image_nc, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="reflect")]
-        decoder += [nn.Tanh()]
-        self.decoder = nn.Sequential(*decoder)
+        # #decoder += [nn.Upsample(scale_factor=2)]
+        # decoder += [nn.Conv2d(ngf, image_nc, kernel_size=3, stride=1, bias=True, padding=1, padding_mode="reflect")]
+        # decoder += [nn.Tanh()]
+        # self.decoder = nn.Sequential(*decoder)
+        self.decoder = nn.Sequential(*[
+            GResBlock(hidden_dims, ngf*4,kernel_size=(3,3), upsample_factor=2),
+            nn.ReLU(), 
+            GResBlock(ngf*4, ngf*2,kernel_size=(3,3), upsample_factor=2),
+            nn.ReLU(), 
+            GResBlock(ngf*2, image_nc,kernel_size=(3,3), upsample_factor=2),
+            nn.Tanh(),
+        ])
 
-
-    def forward(self, x): 
+    def forward(self, x, noise = None): 
         x = x * 2 - 1 #[0,1] -> [-1,1]
         if len(x.shape) == 4: 
             x = x.unsqueeze(1)
@@ -169,8 +181,11 @@ class GRUEncoderDecoderNet(nn.Module):
                     h = torch.zeros((N,self.hidden_dims,H_i,W_i), device = x.device)
 
 
-
-            h = self.gru(x_i, h)
+            if type(self.gru) is list: 
+                for gru in self.gru: 
+                    h = gru(x_i,h)
+            else: 
+                h = self.gru(x_i, h)
             x_i = self.decoder(h)
             out[:,i] = x_i
         #x = torch.reshape(x, (N,self.nframes,C,H,W))
@@ -530,7 +545,7 @@ class DvdGanSimpleModel(BaseModel):
         self.activity_diag_plt["Y"] = self.activity_diag
 
 
-    def compute_losses(self, secs = 1, fps = 30): 
+    def compute_validation_losses(self, secs = 1, fps = 30): 
         T = secs * fps *1.0
         with torch.no_grad():
             self.netG.eval()

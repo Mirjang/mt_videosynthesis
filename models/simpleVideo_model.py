@@ -421,7 +421,7 @@ class SimpleVideoModel(BaseModel):
         #     self.optimizer_G.step()
 
 
-    def compute_losses(self, secs = 2, fps = 30): 
+    def compute_validation_losses(self, secs = 2, fps = 30): 
         T = secs * fps *1.0
         with torch.no_grad():
             self.netG.eval()

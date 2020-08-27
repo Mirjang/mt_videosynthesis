@@ -153,7 +153,7 @@ class WGANLoss(nn.Module):
         self.adv_loss = adv_loss
 
     def __call__(self, x, real_flag):
-        if real_flag is True:
+        if real_flag:
             x = -x
         if self.adv_loss == 'wgan-gp':
             loss = torch.mean(x)

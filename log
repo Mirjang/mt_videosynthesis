@@ -1,2 +1,116 @@
-loading file 0 / 510
-done loading videos (16, 25, 225, 225, 3)
+----------------- Options ---------------
+               batch_size: 1                             
+                    beta1: 0.5                           
+          checkpoints_dir: /mnt/raid/patrickradner/checkpoints	[default: ../checkpoints]
+               clip_grads: 0.25                          	[default: 1]
+               clips_file: info.csv                      
+           continue_train: False                         
+                 dataroot: /mnt/raid/patrickradner/datasets/yt//river_relaxing	[default: ../datasets]
+             dataset_mode: video                         
+              display_env: river_relaxing_dvdgan_dvdgan_128_2	[default: main]
+             display_freq: 100                           	[default: 400]
+               display_id: 1                             
+            display_ncols: 4                             
+             display_port: 8197                          	[default: 8097]
+           display_server: http://localhost              
+          display_winsize: 256                           
+       dvd_spatial_frames: 8                             
+  dvd_temporal_downsample: 2                             
+                    epoch: latest                        
+              epoch_count: 1                             
+                      fps: 20                            	[default: 30]
+                generator: dvdgan                        	[default: dvdgansimple]
+                  gpu_ids: 3                             	[default: 0]
+                init_gain: 0.02                          
+                init_type: xavier                        
+                 input_nc: 3                             
+                  isTrain: True                          	[default: None]
+                lambda_GP: 1                             
+                lambda_L1: 20.0                          	[default: 10.0]
+                 lambda_S: 1.0                           	[default: 0.1]
+                 lambda_T: 5.0                           	[default: 0.1]
+                load_iter: 0                             	[default: 0]
+                 lossType: L1                            
+                       lr: 0.0001                        	[default: 0.0004]
+           lr_decay_iters: 50                            
+                lr_policy: lambda                        
+          max_clip_length: 1.0                           	[default: 2.0]
+         max_dataset_size: inf                           
+     max_per_frame_losses: 10                            
+     max_val_dataset_size: 100                           	[default: 1000]
+                    model: dvdgan                        	[default: simpleVideo]
+                 n_critic: 2                             
+                     name: river_relaxing_dvdgan_dvdgan_128_2	[default: experiment_name]
+                      ndf: 64                            
+                      ngf: 64                            
+                    niter: 250                           	[default: 100]
+              niter_decay: 250                           	[default: 100]
+                  no_html: False                         
+                 no_lsgan: True                          
+                     norm: instance                      
+                     nrdf: 64                            
+                     nref: 32                            
+                     nrhf: 64                            
+       num_display_frames: 16                            	[default: 8]
+ num_segmentation_classes: 182                           
+              num_threads: 6                             
+                output_nc: 3                             
+     parallell_batch_size: 1                             	[default: None]
+                    phase: train                         
+                pool_size: 0                             
+          pretrain_epochs: 0                             
+               print_freq: 100                           
+             reparse_data: False                         
+           resize_or_crop: resize_and_crop               
+               resolution: 128                           	[default: 64]
+             sanity_check: False                         
+             save_by_iter: False                         
+          save_epoch_freq: 5                             
+         save_latest_freq: 5000                          
+           serial_batches: False                         
+              skip_frames: 1                             
+                   suffix:                               
+                      tld: 0.7                           	[default: 0.5]
+                      tlg: 0.3                           	[default: 0.5]
+               train_mode: mixed                         	[default: frame]
+            unroll_frames: 1                             
+         update_html_freq: 100                           	[default: 1000]
+         use_segmentation: False                         
+          validation_freq: 5                             	[default: 10]
+           validation_set: val                           	[default: test]
+                  verbose: False                         
+             weight_decay: 0                             
+----------------- End -------------------
+nframes: 20
+dataset [BaseDataset] was created
+nframes: 20
+dataset [BaseDataset] was created
+#training samples = 7176
+#validation samples = 510
+cuda:3
+initialize network with xavier
+initialize network with xavier
+initialize network with xavier
+model [DvdGanModel] was created
+---------- Networks initialized -------------
+[Network netG] Total number of parameters : 1.328 M
+[Network netDs] Total number of parameters : 2.481 M
+[Network netDt] Total number of parameters : 2.614 M
+-----------------------------------------------
+create web directory /mnt/raid/patrickradner/checkpoints/river_relaxing_dvdgan_dvdgan_128_2/web...
+Sequential(
+  (0): GResBlock(
+    (conv0): SpectralNorm(
+      (module): Conv2d(120, 128, kernel_size=(1, 1), stride=(1, 1), padding=(1, 1))
+    )
+    (conv1): SpectralNorm(
+      (module): Conv2d(128, 128, kernel_size=(1, 1), stride=(1, 1), padding=(1, 1))
+    )
+    (conv_sc): SpectralNorm(
+      (module): Conv2d(120, 128, kernel_size=(1, 1), stride=(1, 1))
+    )
+    (CBNorm1): BatchNorm2d(120, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    (CBNorm2): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+  )
+  (1): ReLU()
+) torch.Size([1, 120, 16, 16])

@@ -22,13 +22,13 @@ from dvdgan.Normalization import SpectralNorm
 #def SpectralNorm(x):
 #    return x
 from .dvdgansimple_model import GRUEncoderDecoderNet
-
+from trajgru.trajgru import TrajGRU
 
 #import torch.nn.utils.spectral_norm as SpectralNorm
 
 class DvdConditionalGenerator(nn.Module):
 
-    def __init__(self, latent_dim=4, ch=32, enc_ch = 4, nframes=48, step_frames = 1, bn=True):
+    def __init__(self, latent_dim=4, ch=8, nframes=48, step_frames = 1, bn=True):
         super().__init__()
         self.step_frames = step_frames
         self.latent_dim = latent_dim
@@ -36,14 +36,18 @@ class DvdConditionalGenerator(nn.Module):
         self.nframes = nframes -1 # first frame is just input frame
         self.n_steps = math.ceil(self.nframes / step_frames)
 
-        self.encoder = nn.Sequential(
-            SpectralNorm(nn.Conv2d(3, enc_ch, kernel_size=(3, 3), padding=1)),
-            GResBlock(enc_ch, enc_ch*4,n_class=1, downsample_factor = 2, bn = bn),
- #           GResBlock(2*enc_ch, 4*enc_ch, n_class=1, downsample_factor = 2, bn = bn),
-            #GResBlock(2*enc_ch, 4*enc_ch, n_class=1, downsample_factor = 2, bn = bn),
-            nn.AdaptiveAvgPool2d(latent_dim),
-            SpectralNorm(nn.Conv2d(4*enc_ch, 8*ch, kernel_size=1)),
-        )
+        self.encoder = nn.ModuleList([
+            nn.Sequential(
+                SpectralNorm(nn.Conv2d(3, ch, kernel_size=(3, 3), padding=1)),
+                GResBlock(ch, ch*2,n_class=1, downsample_factor = 2, bn = bn),
+                ),
+ #           GResBlock(2*ch, 4*ch, n_class=1, downsample_factor = 2, bn = bn),
+            #GResBlock(2*ch, 4*ch, n_class=1, downsample_factor = 2, bn = bn),
+            GResBlock(ch*2, ch*4,n_class=1, downsample_factor = 2, bn = bn),
+            GResBlock(ch*4, ch*8,n_class=1, downsample_factor = 2, bn = bn),
+
+#            SpectralNorm(nn.Conv2d(8*ch, 8*ch, kernel_size=1)),
+        ])
 
 
         self.conv = nn.ModuleList([
@@ -52,30 +56,31 @@ class DvdConditionalGenerator(nn.Module):
             # GResBlock(8 * ch, 8 * ch, n_class=1, upsample_factor=1),
             # GResBlock(8 * ch, 8 * ch, n_class=1),
             #ConvGRU(8 * ch, hidden_sizes=[8 * ch, 16 * ch, 8 * ch], kernel_sizes=[3, 5, 3], n_layers=3),
-            # ConvGRU(8 * ch, hidden_sizes=[8 * ch, 8 * ch], kernel_sizes=[3, 3], n_layers=2),
-            # GResBlock(8 * ch, 8 * ch, n_class=1, upsample_factor=1, bn = bn),
-            # GResBlock(8 * ch, 8 * ch, n_class=1, bn = bn),
-            #ConvGRU(8 * ch, hidden_sizes=[8 * ch, 16 * ch, 8 * ch], kernel_sizes=[3, 5, 3], n_layers=3),
             ConvGRU(8 * ch, hidden_sizes=[8 * ch], kernel_sizes=3, n_layers=1),
             GResBlock(8 * ch, 8 * ch, n_class=1, upsample_factor=2, bn = bn),
-            GResBlock(8 * ch, 4 * ch, n_class=1 ,bn = bn),
-            #ConvGRU(4 * ch, hidden_sizes=[4 * ch, 8 * ch, 4 * ch], kernel_sizes=[3, 5, 5], n_layers=3),
+            GResBlock(8 * ch, 4 * ch, n_class=1, upsample_factor=1, bn = bn),
+            #ConvGRU(8 * ch, hidden_sizes=[8 * ch, 16 * ch, 8 * ch], kernel_sizes=[3, 5, 3], n_layers=3),
             ConvGRU(4 * ch, hidden_sizes=[4 * ch], kernel_sizes=3, n_layers=1),
-            GResBlock(4 * ch, 4 * ch, n_class=1, upsample_factor=1, bn = bn),
-            GResBlock(4 * ch, 2 * ch, n_class=1, bn = bn)
+            GResBlock(4 * ch, 4 * ch, n_class=1, upsample_factor=2, bn = bn),
+            GResBlock(4 * ch, 2 * ch, n_class=1, upsample_factor=1, bn = bn),
+            #ConvGRU(4 * ch, hidden_sizes=[4 * ch, 8 * ch, 4 * ch], kernel_sizes=[3, 5, 5], n_layers=3),
+            ConvGRU(2 * ch, hidden_sizes=[2 * ch], kernel_sizes=3, n_layers=1),
+            GResBlock(2 * ch, 2 * ch, n_class=1, upsample_factor=2, bn = bn),
+            GResBlock(2 * ch, 1 * ch, n_class=1, upsample_factor=1, bn = bn)
+   
         ])
 
         # TODO impl ScaledCrossReplicaBatchNorm
         # self.ScaledCrossReplicaBN = ScaledCrossReplicaBatchNorm2d(1 * chn)
 
-        self.colorize = SpectralNorm(nn.Conv2d(2 * ch, 3, kernel_size=(3, 3), padding=1))
+        self.colorize = SpectralNorm(nn.Conv2d(1 * ch, 3, kernel_size=(3, 3), padding=1))
         #decode 1 RNN step into multiple frames using 3x3 convs
 
         if step_frames > 1:
             self.decoder = nn.Sequential(
-                SpectralNorm(nn.Conv3d(2*ch, 2*ch, kernel_size=(3, 3, 3), padding=1)),
+                SpectralNorm(nn.Conv3d(1*ch, 1*ch, kernel_size=(3, 3, 3), padding=1)),
                 nn.ReLU(),
-                SpectralNorm(nn.Conv3d(2*ch, 2*ch, kernel_size=(3,3,3), padding=1)),
+                SpectralNorm(nn.Conv3d(1*ch, 1*ch, kernel_size=(3,3,3), padding=1)),
             )
 
     def forward(self, x):
@@ -84,8 +89,15 @@ class DvdConditionalGenerator(nn.Module):
             x = x[:,0,...]
 
         #y = y.view(-1, 8 * self.ch, self.latent_dim, self.latent_dim) # B x ch x ld x ld
-        y = self.encoder(x)
-
+        encoder_list = [x]
+        for layer in self.encoder: 
+            encoder_list.append(layer(encoder_list[-1]))
+        #y = self.encoder(x)
+        encoder_list = encoder_list[1:]
+        encoder_list.reverse()
+        y = encoder_list[0] # B x ch x ld x ld
+        depth = 0
+  
         for k, conv in enumerate(self.conv):
             if isinstance(conv, ConvGRU):
 
@@ -97,12 +109,12 @@ class DvdConditionalGenerator(nn.Module):
                 for i in range(self.n_steps):
                     if k == 0:
                         if i == 0:
-                            frame_list.append(conv(y))  # T x [B x ch x ld x ld]
+                            frame_list.append(conv(y, [encoder_list[depth]]))  # T x [B x ch x ld x ld]
                         else:
                             frame_list.append(conv(y, frame_list[i - 1]))
                     else:
                         if i == 0:
-                            frame_list.append(conv(y[:,0,:,:,:].squeeze(1)))  # T x [B x ch x ld x ld]
+                            frame_list.append(conv(y[:,0,:,:,:].squeeze(1),[encoder_list[depth]]))  # T x [B x ch x ld x ld]
                         else:
                             frame_list.append(conv(y[:,i,:,:,:].squeeze(1), frame_list[i - 1]))
                 frame_hidden_list = []
@@ -114,6 +126,7 @@ class DvdConditionalGenerator(nn.Module):
                 # print(y.size())
                 B, T, C, W, H = y.size()
                 y = y.view(-1, C, W, H)
+                depth += 1
 
             elif isinstance(conv, GResBlock):
                 y = conv(y) # BT, C, W, H
@@ -146,12 +159,109 @@ class DvdConditionalGenerator(nn.Module):
         y = y.view(-1, self.nframes,3, W, H) # B, T/S, C*S, W, H
 
         y = torch.tanh(y)
-
         y = torch.cat([x.unsqueeze(1), y],  dim = 1)
         y = (y+1) / 2.0 #[-1,1] -> [0,1] for vis
         return y
 
+class DVDGan(nn.Module): 
+    def __init__(self, nframes, input_nc=3, ngf = 32, latent_nc = 64, res = 128, fp_levels = 3, trajgru = False, bn = False):
+        super(DVDGan, self).__init__()
+        self.nframes = nframes
+        self.input_nc = input_nc
+        self.latent_nc = latent_nc  
+        self.fp_levels = fp_levels
+        self.lowest_res = res
+        # encoder = []
+        
 
+        def GGDown(ch): 
+            return nn.Sequential(*[GResBlock(ch, ch, kernel_size=(3,3), downsample_factor=1, upsample_factor=1, bn=bn),
+            nn.ReLU(), 
+            GResBlock(ch, ch*2, kernel_size=(3,3), downsample_factor=2, bn=bn),
+            nn.ReLU()])
+
+        def GGUp(ch): 
+            return nn.Sequential(*[GResBlock(ch, ch, kernel_size=(3,3), downsample_factor=1, upsample_factor=1, bn=bn),
+            nn.ReLU(), 
+            GResBlock(ch, ch//2, kernel_size=(3,3), upsample_factor=2, bn=bn),
+            nn.ReLU()])
+
+        self.im2net = nn.Sequential(
+            SpectralNorm(nn.Conv2d(input_nc, ngf, kernel_size=(3, 3), padding=1)),
+            nn.ReLU(),
+        )
+        
+        self.colorize = nn.Sequential(
+            SpectralNorm(nn.Conv2d(ngf, 3, kernel_size=(3, 3), padding=1)), 
+            nn.Tanh(), 
+        )
+
+        self.latent2in = nn.Sequential(
+            SpectralNorm(nn.Conv2d(latent_nc, ngf * (2**fp_levels), kernel_size=(1,1), padding=0)),
+            nn.ReLU(),
+            SpectralNorm(nn.Conv2d(ngf * (2**fp_levels), ngf * (2**fp_levels), kernel_size=(1,1), padding=0)),
+            nn.ReLU(),
+        )
+
+        down = []
+        right = []
+        up = []
+
+        for i in range(self.fp_levels): 
+            ch = ngf * (2**i)
+            
+            ########down##########
+            down.append(GGDown(ch))
+
+            ########right########
+            if trajgru: 
+                gru = TrajGRU(ch * 2, ch * 2)
+            else: 
+                gru = ConvGRU(ch * 2, hidden_sizes=[ch * 2], kernel_sizes=3, n_layers=1)
+            right.insert(0,gru)
+
+            ########up##########
+            up.insert(0,GGUp(ch*2))
+            self.lowest_res = self.lowest_res//2
+
+        self.down = nn.ModuleList(down)
+        self.right = nn.ModuleList(right)
+        self.up = nn.ModuleList(up)
+
+    def forward(self, x, noise = None): 
+        x = x * 2 - 1 #[0,1] -> [-1,1]
+        if len(x.shape) == 4: 
+            x = x.unsqueeze(1)
+
+        N,T,C,H,W = x.shape
+        out = torch.zeros((N,self.nframes,C,H,W), device = x.device)
+        out[:,0] = x[:,0,...]
+        h = None
+
+        if noise is None: 
+            noise = torch.normal(mean = 0, std=1, size=(N,self.latent_nc,1,1), device= x.device)
+
+        noise = noise.expand(-1, -1, self.lowest_res, self.lowest_res)
+        noise = self.latent2in(noise)
+        
+        x_0 = self.im2net(x[:,0,...])
+
+        left = [x_0]
+        for down in self.down:
+            left.append(down(left[-1]))
+        left.reverse()
+        for t in range(1,self.nframes):
+            W, H = self.lowest_res, self.lowest_res
+            rnn_in = noise
+            for i, (right, up) in enumerate(zip(self.right, self.up)): 
+                left[i] = right(rnn_in,left[i],)
+                rnn_in = up(left[i])
+
+            out[:,t] = self.colorize(left[-1])
+            
+        #x = torch.reshape(x, (N,self.nframes,C,H,W))
+        out = (out+1) / 2.0 #[-1,1] -> [0,1] for vis 
+        return out
 
 class DvdGanModel(BaseModel):
     def name(self):
@@ -175,9 +285,8 @@ class DvdGanModel(BaseModel):
         self.num_display_frames = min(opt.num_display_frames, self.nframes - 1) //2 *2
 
         self.opt = opt
-        self.iter = 0
+        self.iter = 1
         self.ndsframes = opt.dvd_spatial_frames
-        self.parallell_batch_size = opt.parallell_batch_size if opt.parallell_batch_size > 0 else opt.batch_size
         assert self.nframes > self.ndsframes+1, "number of frames sampled for disc should be leq to number of total frames generated (length-1)"
         print(self.device)
 
@@ -196,7 +305,7 @@ class DvdGanModel(BaseModel):
             self.visual_names += [f"frame_{i}"]
 
         # specify the training losses you want to print out. The program will call base_model.get_current_losses
-        self.loss_names = ['Gs', 'Gt', 'Ds', 'Dt', 'Ds_real','Ds_fake','Dt_real', 'Dt_fake']
+        self.loss_names = ['Gs', 'Gt', 'Ds', 'Dt']
         if opt.pretrain_epochs > 0:
             self.loss_names.append('G_L1')
         # specify the models you want to save to the disk. The program will call base_model.save_networks and base_model.load_networks
@@ -212,35 +321,37 @@ class DvdGanModel(BaseModel):
         self.in_dim = 1
         self.condition_gen = True
         self.conditional = False
-        self.wgan = False
+        self.wgan = True
         if not self.wgan:
             self.loss_names += ['accDs_real','accDs_fake','accDt_real', 'accDt_fake']
+        else: 
+            self.loss_names += ['Ds_real', 'Ds_fake', 'Dt_real', 'Dt_fake', 'Ds_GP', 'Dt_GP']
         input_nc = opt.input_nc + (opt.num_segmentation_classes if opt.use_segmentation else 0)
-      #  netG = DvdConditionalGenerator(nframes = self.nframes, ch = 32, enc_ch = 16, latent_dim = 8, step_frames = self.opt.unroll_frames, bn = bn)
         if opt.generator == "dvdgan":
-            netG = DvdGenerator(nframes = self.nframes, ch = 8, n_class=1, in_dim = self.in_dim)
-        elif opt.generator == "dvdgansimple":
-            netG = GRUEncoderDecoderNet(self.nframes,input_nc ,ngf = 64, hidden_dims=32, enc2hidden = True)
+            netG = DvdConditionalGenerator(nframes = self.nframes, ch = 16, latent_dim = 8, step_frames = 1, bn = True)
+
+            #netG = DVDGan(self.nframes,input_nc ,ngf = 32, latent_nc=120,fp_levels = 3, res = self.opt.resolution, )
         elif opt.generator == "trajgru": 
-            netG = GRUEncoderDecoderNet(self.nframes,input_nc,ngf = 64, hidden_dims=32, enc2hidden = True, trajgru=True)
+            netG = DVDGan(self.nframes,input_nc,ngf = 16, latent_nc=120, fp_levels = 3, trajgru=True, res = self.opt.resolution, )
+        elif opt.generator == "dvdgansimple":
+            netG = GRUEncoderDecoderNet(self.nframes,input_nc ,ngf = 32, hidden_dims=128, enc2hidden = True)
 
         else:
             assert False, f"unknown generator model specified: {opt.generator}!"
         self.netG = networks.init_net(netG, opt.init_type, opt.init_gain, self.gpu_ids)
 
         if self.isTrain:
-            self.conditional = False
             #default chn = 128
             netDs = DvdSpatialDiscriminator(chn = 16, sigmoid = not self.wgan, cgan = self.conditional)
             self.netDs = networks.init_net(netDs, opt.init_type, opt.init_gain, self.gpu_ids)
 
             #default chn = 128
-            netDt = DvdTemporalDiscriminator(chn = 24, sigmoid = not self.wgan)
+            netDt = DvdTemporalDiscriminator(chn = 16, sigmoid = not self.wgan)
             self.netDt = networks.init_net(netDt, opt.init_type, opt.init_gain, self.gpu_ids)
 
             # define loss functions
             self.criterionGAN = networks.GANLoss(False).to(self.device)
-            self.criterionWGAN = networks.WGANLoss().to(self.device)
+            self.criterionWGAN = networks.WGANLoss(adv_loss = 'wgan-gp').to(self.device)
             self.criterionL1 = torch.nn.L1Loss()
             # self.criterionL1Smooth = torch.nn.SmoothL1Loss()
             # self.criterionL2 = torch.nn.MSELoss()
@@ -259,6 +370,18 @@ class DvdGanModel(BaseModel):
         self.loss_Gs = 0
         self.loss_Gt = 0
         self.loss_G_L1 = 0
+        self.loss_Ds = 0
+        self.loss_Dt = 0
+        self.loss_accDs_fake = 0
+        self.loss_accDs_real = 0
+        self.loss_accDt_real = 0 
+        self.loss_accDt_fake = 0
+        self.loss_Ds_fake = 0
+        self.loss_Ds_real = 0
+        self.loss_Dt_fake = 0
+        self.loss_Dt_real = 0
+        self.loss_Ds_GP = 0
+        self.loss_Dt_GP = 0
 
     def set_input(self, input):
         self.target_video = input['VIDEO'].to(self.device).permute(0,1,4,2,3).float() / 255.0 #normalize to [0,1] for vis and stuff
@@ -272,33 +395,24 @@ class DvdGanModel(BaseModel):
         _, T, *_ = self.target_video.shape
         self.target_video = self.target_video[:, :min(T,self.nframes),...]
 
-    def forward(self, frame_length = -1, train = True, sub_batch = -1):
+    def forward(self, frame_length = -1, train = True):
 
         if hasattr(self.netG, "nFrames"):
             self.netG.nFrames = frame_length if frame_length>0 else self.nframes
-        if sub_batch == -1: 
-            lbi, ubi = 0, self.target_video.size(0)
-        else: 
-            lbi = sub_batch * self.parallell_batch_size #lower batch index
-            ubi = min(lbi + self.parallell_batch_size, self.input.size(0))
+ 
         #if train and self.condition_gen:
         #    video = self.netG(self.target_video[lbi:ubi,:random.randrange(*self.train_range),...])
         #else:
-        video = self.netG(self.input[lbi:ubi,...])
-        self.predicted_video = video
+        self.predicted_video = self.netG(self.input)
         #print(video.shape, self.target_video.shape)
-        vis = torch.cat([self.predicted_video[:, :self.nframes,...].detach().cpu(), self.target_video[lbi:ubi,...].detach().cpu()], dim = 4)
-        
-        if sub_batch <= 0:
-            self.prediction_target_video = vis
+                
+        self.prediction_target_video = torch.cat([self.predicted_video[:, :self.nframes,...].detach().cpu(), self.target_video.detach().cpu()], dim = 4)
 
-            for i in range(self.num_display_frames//2):
-                setattr(self,f"frame_{i}", self.predicted_video[:,i,...].detach().cpu() )
-            for i in range(self.num_display_frames//2):
-                ith_last = self.num_display_frames//2 -i +1
-                setattr(self,f"frame_{i + self.num_display_frames//2}", self.predicted_video[:,-ith_last,...].detach().cpu() )
-        else: 
-            self.prediction_target_video = torch.cat([self.prediction_target_video, vis], dim = 0)
+        for i in range(self.num_display_frames//2):
+            setattr(self,f"frame_{i}", self.predicted_video[:,i,...].detach().cpu() )
+        for i in range(self.num_display_frames//2):
+            ith_last = self.num_display_frames//2 -i +1
+            setattr(self,f"frame_{i + self.num_display_frames//2}", self.predicted_video[:,-ith_last,...].detach().cpu() )
 
         #video = video * 256
         #return video.permute(0,1,3,4,2)
@@ -311,7 +425,7 @@ class DvdGanModel(BaseModel):
     def gradient_penalty(self, real_img, fake_img, net):
 
         # Compute gradient penalty
-        alpha = torch.rand(real_img.size(0), 1, 1, 1).cuda().expand_as(real_img)
+        alpha = torch.rand(real_img.size(0), 1, 1, 1, 1).to(self.device).expand_as(real_img)
         interpolated = torch.tensor(alpha * real_img.data + (1 - alpha) * fake_img.data, requires_grad=True)
 
         out = net(interpolated)
@@ -323,14 +437,12 @@ class DvdGanModel(BaseModel):
                                    create_graph=True,
                                    only_inputs=True)[0]
 
-        print(grad.size())
         grad = grad.view(grad.size(0), -1)
         grad_l2norm = torch.sqrt(torch.sum(grad ** 2, dim=1))
         d_loss_gp = torch.mean((grad_l2norm - 1) ** 2)
 
         # Backward + Optimize
-        loss = self.lambda_gp * d_loss_gp
-        return loss
+        return d_loss_gp
 
     def sample_frames(self, vid, detach = False):
         _, T, *_ = self.predicted_video.shape
@@ -345,86 +457,76 @@ class DvdGanModel(BaseModel):
         return torch.stack(frames, dim = 0)
 
     def backward_Ds_wgan(self, train_threshold = 0):
-        self.loss_Ds_fake = 0
-        self.loss_Ds_real = 0
+        # self.loss_Ds_fake = 0
+        # self.loss_Ds_real = 0
         _, T, *_ = self.predicted_video.shape
         gp = 0
         n_samples = min(T-1,self.ndsframes)
-        for i in random.sample(range(1, T), n_samples):
+        fake = self.sample_frames(self.predicted_video, detach=True)
+        real = self.sample_frames(self.target_video, detach=False)
 
-            fake,real = self.predicted_video[:,i,...].detach().to(self.device) , self.target_video[:,i,...]
+        # if self.conditional:
+        #     fake = torch.cat([self.input, fake], dim = 1)
+        #     real = torch.cat([self.input, real], dim = 1)
+        # Fake
+        # stop backprop to the generator by detaching fake_B
+        pred_fake = self.netDs(fake)
+        self.loss_Ds_fake = torch.mean(pred_fake)
 
-            if self.conditional:
-                fake = torch.cat([self.input, fake], dim = 1)
-                real = torch.cat([self.input, real], dim = 1)
-            # Fake
-            # stop backprop to the generator by detaching fake_B
-            pred_fake = self.netDs(fake)
-            self.loss_Ds_fake += self.criterionWGAN(pred_fake, False)
+        # Real
+        pred_real = self.netDs(real)
+        self.loss_Ds_real = torch.mean(pred_real)
+        self.loss_Ds_GP = self.gradient_penalty(real,fake,self.netDs)
 
-            # Real
-            pred_real = self.netDs(real)
-            self.loss_Ds_real += self.criterionWGAN(pred_real, True)
-       #     gp += self.gradient_penalty(real,fake,self.netDs)
-
-
-        self.loss_Ds_real = self.loss_Ds_real / n_samples
-        self.loss_Ds_fake = self.loss_Ds_fake / n_samples
         # Combined loss
-        self.loss_Ds_GP = gp / n_samples
-        self.loss_Ds = self.loss_Ds_real + self.loss_Ds_fake# + self.opt.lambda_GP * self.loss_Ds_GP
-        self.loss_Ds.backward()
+        self.loss_Ds = (self.loss_Ds_real - self.loss_Ds_fake) + self.opt.lambda_GP * self.loss_Ds_GP
         return True
 
     def backward_Dt_wgan(self, train_threshold = 0):
         # Fake
         # stop backprop to the generator by detaching fake_B
         pred_fake = self.netDt(self.predicted_video.detach())
-        self.loss_Dt_fake = self.criterionWGAN(pred_fake, False)
+        self.loss_Dt_fake = torch.mean(pred_fake)
         # Real
         pred_real = self.netDt(self.target_video)
-        self.loss_Dt_real = self.criterionWGAN(pred_real, True)
+        self.loss_Dt_real = torch.mean(pred_real)
 
         # Combined loss
-      #  self.loss_Dt_GP = self.gradient_penalty(self.target_video, self.predicted_video.detach(), net = self.netDt)
+        self.loss_Dt_GP = self.gradient_penalty(self.target_video, self.predicted_video.detach(), net = self.netDt)
 
-        self.loss_Dt = self.loss_Dt_real + self.loss_Dt_fake #+ self.opt.lambda_GP * self.loss_Dt_GP
-        self.loss_Dt.backward()
+        self.loss_Dt = (self.loss_Dt_real - self.loss_Dt_fake) + self.opt.lambda_GP * self.loss_Dt_GP
         return True
 
     def backward_G_wgan(self, epoch, train_threshold = 0):
         # First, G(A) should fake the discriminator
-        self.loss_G = 0
-        self.loss_Gs = 0
-        self.loss_Gt = 0
+        # self.loss_G = 0
+        # self.loss_Gs = 0
+        # self.loss_Gt = 0
         self.loss_G_L1 = 0
 
-        for i in random.sample(range(1, self.nframes), self.ndsframes):
-            fake = self.predicted_video[:,i,...]
-            if self.conditional:
-                fake = torch.cat([self.input, fake], dim = 1)
+        fake_frames = self.sample_frames(self.predicted_video, detach=False)
 
-            pred_fake_ds = self.netDs(fake)
-            self.loss_Gs += pred_fake_ds
-        self.loss_Gs = torch.mean(self.loss_Gs / self.ndsframes)
+            # if self.conditional:
+            #     fake = torch.cat([self.input, fake], dim = 1)
+
+        pred_fake_ds = self.netDs(fake_frames)
+        self.loss_Gs = torch.mean(pred_fake_ds)
 
         pred_fake_dt = self.netDt(self.predicted_video)
         self.loss_Gt = torch.mean(pred_fake_dt)
 
-        self.loss_G += -(self.loss_Gs * self.opt.lambda_S + self.loss_Gt * self.opt.lambda_T)
+        self.loss_G = (self.loss_Gs * self.opt.lambda_S + self.loss_Gt * self.opt.lambda_T)
 
         if epoch <= self.opt.pretrain_epochs:
             self.loss_G_L1 =self.criterionL1(self.predicted_video, self.target_video) * self.opt.lambda_L1
             self.loss_G += self.loss_G_L1
-
-        self.loss_G.backward()
         return True
 
     def backward_Ds(self, train_threshold = 0):
-        self.loss_Ds_fake = 0
-        self.loss_Ds_real = 0
-        self.loss_accDs_fake = 0
-        self.loss_accDs_real = 0
+        # self.loss_Ds_fake = 0
+        # self.loss_Ds_real = 0
+        # self.loss_accDs_fake = 0
+        # self.loss_accDs_real = 0
         _, T, *_ = self.predicted_video.shape
 
         # Fake
@@ -444,8 +546,6 @@ class DvdGanModel(BaseModel):
         self.loss_Ds_real = self.loss_Ds_real
         # Combined loss
         self.loss_Ds = (self.loss_Ds_fake + self.loss_Ds_real)*0.5
-        self.loss_Ds.backward()
-
         return True
 
     def backward_Dt(self, train_threshold = 0):
@@ -463,7 +563,6 @@ class DvdGanModel(BaseModel):
         # Combined loss
         self.loss_acc_Dt = (self.loss_accDt_fake + self.loss_accDt_real)*.5
         self.loss_Dt = (self.loss_Dt_fake + self.loss_Dt_real) * 0.5
-        self.loss_Dt.backward()
         return True
 
     def backward_G(self, epoch, train_threshold = 0):
@@ -480,84 +579,76 @@ class DvdGanModel(BaseModel):
         pred_fake_dt = self.netDt(self.predicted_video)
         self.loss_Gt = self.criterionGAN(pred_fake_dt, True)
 
-        self.loss_G += (self.loss_Gs * self.opt.lambda_S * trust_Ds + self.loss_Gt * self.opt.lambda_T * trust_Dt) / (trust)
+        self.loss_G += self.loss_Gs * self.opt.lambda_S + self.loss_Gt * self.opt.lambda_T
 
         if epoch <= self.opt.pretrain_epochs:
             self.loss_G_L1 =self.criterionL1(self.predicted_video, self.target_video) * self.opt.lambda_L1
             self.loss_G += self.loss_G_L1
 
-        self.loss_G.backward()
         return True
 
 
-    def optimize_parameters(self, epoch_iter, verbose = False):
-        self.iter += 1
+    def compute_losses(self, epoch, verbose = False):
         verbose = verbose or self.opt.verbose
-        #Te = self.epoch_frame_length(epoch_iter)
+        #Te = self.epoch_frame_length(epoch)
         Te = self.nframes
         B, TT,*_ = self.target_video.shape
 
-        acc_update_Ds = False
-        acc_update_Dt = False
-        acc_update_G = False
+        self.forward(frame_length=Te)
+        _, T,*_ = self.predicted_video.shape
 
-        for sub_batch in range(math.ceil(B/self.parallell_batch_size)): 
-            self.forward(frame_length=Te, sub_batch=sub_batch)
-            _, T,*_ = self.predicted_video.shape
+        T = min(T,TT,Te) # just making sure to cut target if we didnt predict all the frames and to cut prediction, if we predicted more than target (i.e. we already messed up somewhere)
 
-            T = min(T,TT,Te) # just making sure to cut target if we didnt predict all the frames and to cut prediction, if we predicted more than target (i.e. we already messed up somewhere)
+        # update Generator every n_critic steps
+        if self.iter % self.opt.n_critic == 0:
+            self.set_requires_grad(self.netDs, False)
+            self.set_requires_grad(self.netDt, False)
 
-            # update Generator every n_critic steps
-            if self.iter % self.opt.n_critic == 0 and self.iter > 50:
-                self.set_requires_grad(self.netDs, False)
-                self.set_requires_grad(self.netDt, False)
+            self.set_requires_grad(self.netG, True)
+            update_G = self.backward_G_wgan(epoch, train_threshold = self.opt.tlg) if self.wgan else self.backward_G(epoch, train_threshold = self.opt.tlg)
+            if update_G: 
+                self.loss_G = self.loss_G / self.opt.n_acc_batches
+                self.loss_G.backward()            
+            if verbose:
+                diagnose_network(self.netG, "netG")
 
-                self.set_requires_grad(self.netG, True)
-                self.optimizer_G.zero_grad()
-                update_G = self.backward_G_wgan(epoch_iter, train_threshold = self.opt.tlg) if self.wgan else self.backward_G(epoch_iter, train_threshold = self.opt.tlg)
-                if verbose:
-                    diagnose_network(self.netG, "netG")
-                if update_G:
-                    acc_update_G = True
-                else: 
-                    pass # clear graph? 
-            else: 
-                #update Discriminator(s)
-                self.set_requires_grad(self.netDs, True)
-                self.optimizer_Ds.zero_grad()
-                update_Ds = self.backward_Ds_wgan() if self.wgan else self.backward_Ds(train_threshold = self.opt.tld)
-                if verbose:
-                    diagnose_network(self.netDs,"Ds")
+        else: 
+            #update Discriminator(s)
+            self.set_requires_grad(self.netDs, True)
+            update_Ds = self.backward_Ds_wgan() if self.wgan else self.backward_Ds(train_threshold = self.opt.tld)
+            if update_Ds: 
+                self.loss_Ds = self.loss_Ds / self.opt.n_acc_batches
+                self.loss_Ds.backward()
+            if verbose:
+                diagnose_network(self.netDs,"Ds")
 
-                if update_Ds:
-                    acc_update_Ds = True
-                else:
-                    pass #clear graph? 
-        
-                self.set_requires_grad(self.netDt, True)
-                self.optimizer_Dt.zero_grad()
-                update_Dt = self.backward_Dt_wgan() if self.wgan else self.backward_Dt(train_threshold = self.opt.tld)
+            self.set_requires_grad(self.netDt, True)
+            update_Dt = self.backward_Dt_wgan() if self.wgan else self.backward_Dt(train_threshold = self.opt.tld)
+            if update_Dt: 
+                self.loss_Dt = self.loss_Dt / self.opt.n_acc_batches
+                self.loss_Dt.backward()
+            if verbose:
+                diagnose_network(self.netDt,"Dt")
 
-                if verbose:
-                    diagnose_network(self.netDt,"Dt")
-                if update_Dt:
-                    acc_update_Dt = True
-                else: 
-                    pass #clear graph? 
+    def optimize_parameters(self, epoch, verbose = False):
 
-        if acc_update_Ds:
-            nn.utils.clip_grad_norm_(self.netDs.parameters(), self.opt.clip_grads)
-            self.optimizer_Ds.step()
-            
-        if acc_update_Dt: 
-            nn.utils.clip_grad_norm_(self.netDt.parameters(), self.opt.clip_grads)
-            self.optimizer_Dt.step()
-
-        if acc_update_G: 
+        # update Generator every n_critic steps
+        if self.iter % self.opt.n_critic == 0:
             nn.utils.clip_grad_norm_(self.netG.parameters(), self.opt.clip_grads)
             self.optimizer_G.step()
+            self.optimizer_G.zero_grad()
+        else: 
+            nn.utils.clip_grad_norm_(self.netDs.parameters(), self.opt.clip_grads)
+            self.optimizer_Ds.step()
+            self.optimizer_Ds.zero_grad()
+            nn.utils.clip_grad_norm_(self.netDt.parameters(), self.opt.clip_grads)
+            self.optimizer_Dt.step()
+            self.optimizer_Dt.zero_grad()
 
-    def compute_losses(self, secs = 1, fps = 30):
+        self.iter += 1
+
+
+    def compute_validation_losses(self, secs = 1, fps = 30):
         T = secs * fps *1.0
         with torch.no_grad():
             self.netG.eval()

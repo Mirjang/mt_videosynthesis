@@ -7,13 +7,15 @@ from .Normalization import ConditionalNorm, SpectralNorm
 #def SpectralNorm(x): 
 #    return x
 
-
 class GResBlock(nn.Module):
 
     def __init__(self, in_channel, out_channel, kernel_size=None,
-                 padding=1, stride=1, n_class=96, bn=True,
-                 activation=F.relu, upsample_factor=2, downsample_factor=1):
+                 padding=1, stride=1, n_class=0, bn=True,
+                 activation=F.relu, upsample_factor=2, downsample_factor=1, weight_norm = SpectralNorm):
         super().__init__()
+   
+        if weight_norm is None:
+            weight_norm = lambda x: x
 
         self.upsample_factor = upsample_factor if downsample_factor is 1 else 1
         self.downsample_factor = downsample_factor
@@ -24,15 +26,15 @@ class GResBlock(nn.Module):
         if kernel_size is None:
             kernel_size = [3, 3]
 
-        self.conv0 = SpectralNorm(nn.Conv2d(in_channel, out_channel,
+        self.conv0 = weight_norm(nn.Conv2d(in_channel, out_channel,
                                              kernel_size, stride, padding,
                                              bias=True if bn else True))
-        self.conv1 = SpectralNorm(nn.Conv2d(out_channel, out_channel,
+        self.conv1 = weight_norm(nn.Conv2d(out_channel, out_channel,
                                              kernel_size, stride, padding,
                                              bias=True if bn else True))
 
         self.skip_proj = True
-        self.conv_sc = SpectralNorm(nn.Conv2d(in_channel, out_channel, 1, 1, 0))
+        self.conv_sc = weight_norm(nn.Conv2d(in_channel, out_channel, 1, 1, 0))
 
         # if in_channel != out_channel or upsample_factor or downsample_factor:
         #     self.conv_sc = SpectralNorm(nn.Conv2d(in_channel, out_channel, 1, 1, 0))

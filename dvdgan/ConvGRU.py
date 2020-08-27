@@ -114,9 +114,14 @@ class ConvGRU(nn.Module):
 
         input_ = x
         output = []
+        ret_list = True
+       
 
         if hidden is None:
             hidden = [None] * self.n_layers
+        elif type(hidden) != list:
+            ret_list = False
+            hidden = [hidden]
 
         for i in range(self.n_layers):
 
@@ -130,7 +135,7 @@ class ConvGRU(nn.Module):
             input_ = upd_cell_hidden
 
         # retain tensors in list to allow different hidden sizes
-        return output
+        return output if ret_list else output[-1]
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 set -ex
 
 # GPU
-GPU_ID=2
+GPU_ID=3
 
 if [[ $(nvidia-smi | grep "^|    $GPU_ID    ") ]]; then
     read -p "GPU currently in use, continue? " -n 1 -r
@@ -29,12 +29,12 @@ DATASET_MODE=video
 # models
 MODEL=dvdgan
 # optimizer parameters
-LR=0.00001
-BATCHSIZE=2
-SUB_BATCH=2
-RESOLUTION=128
+LR=0.0001
+BATCHSIZE=16
+SUB_BATCH=16
+RESOLUTION=64
 FPS=25
-GENERATOR=trajgru
+GENERATOR=dvdgan
 
 NAME=${DATASET}_${MODEL}_${GENERATOR}_${RESOLUTION}_2
 DISPNAME=${NAME}
@@ -46,5 +46,5 @@ FREQ=100
 DISP_FRAMES=16
 VAL_SIZE=100
 #--verbose --sanity_check
-python train.py --niter 250 --niter_decay 250 --train_mode "mixed" --clip_grads .05 --n_critic 3 --lambda_L1 20 --lambda_S 1 --lambda_T 5 --max_clip_length $LEN --skip_frames $SKIP --validation_freq 5 --validation_set val --pretrain_epochs 0 --tlg .3 --tld .7 --max_val_dataset_size $VAL_SIZE --init_type xavier --batch_size $BATCHSIZE --parallell_batch_size $SUB_BATCH --resolution $RESOLUTION --fps $FPS --dataroot $DATASETS_DIR/$DATASET --checkpoints_dir $CHECKPOINT_DIR --name $NAME --model $MODEL --generator $GENERATOR --dataset_mode $DATASET_MODE --gpu_ids $GPU_ID --lr $LR --display_port $VISDOM_PORT --display_env $DISPNAME --update_html_freq $FREQ --num_display_frames $DISP_FRAMES --print_freq $FREQ --display_freq $FREQ
+python train.py --niter 250 --niter_decay 250 --train_mode "mixed" --clip_grads .05 --n_critic 3 --lambda_L1 50 --lambda_S 1 --lambda_T 1 --max_clip_length $LEN --skip_frames $SKIP --validation_freq 5 --validation_set val --pretrain_epochs 0 --tlg .3 --tld .7 --max_val_dataset_size $VAL_SIZE --init_type xavier --batch_size $BATCHSIZE --parallell_batch_size $SUB_BATCH --resolution $RESOLUTION --fps $FPS --dataroot $DATASETS_DIR/$DATASET --checkpoints_dir $CHECKPOINT_DIR --name $NAME --model $MODEL --generator $GENERATOR --dataset_mode $DATASET_MODE --gpu_ids $GPU_ID --lr $LR --display_port $VISDOM_PORT --display_env $DISPNAME --update_html_freq $FREQ --num_display_frames $DISP_FRAMES --print_freq $FREQ --display_freq $FREQ
 #python test.py --dataroot $DATASETS_DIR/$OBJECT --name $OBJECT-$MODEL --renderer $RENDERER --model $MODEL --netG unet_256 --dataset_mode aligned --norm batch --gpu_ids 0
