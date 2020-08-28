@@ -29,8 +29,8 @@ DATASET_MODE=video
 # models
 MODEL=dvdgan
 # optimizer parameters
-LR=0.00001
-BATCHSIZE=2
+LR=0.0001
+BATCHSIZE=32
 SUB_BATCH=2
 RESOLUTION=128
 FPS=25

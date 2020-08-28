@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.nn import init
+from trajgru.trajgru import TrajGRU
 
 class ConvGRUCell(nn.Module):
     """
@@ -56,7 +57,7 @@ class ConvGRUCell(nn.Module):
 
 class ConvGRU(nn.Module):
 
-    def __init__(self, input_size, hidden_sizes, kernel_sizes, n_layers):
+    def __init__(self, input_size, hidden_sizes, kernel_sizes, n_layers, trajgru=False):
         """
         Generates a multi-layer convolutional GRU.
         :param input_size: integer. depth dimension of input tensors.
@@ -92,7 +93,10 @@ class ConvGRU(nn.Module):
             else:
                 input_dim = self.hidden_sizes[i-1]
 
-            cell = ConvGRUCell(input_dim, self.hidden_sizes[i], self.kernel_sizes[i])
+            if trajgru: 
+                cell = TrajGRU(input_dim, self.hidden_sizes[i])
+            else: 
+                cell = ConvGRUCell(input_dim, self.hidden_sizes[i], self.kernel_sizes[i])
             # name = 'ConvGRUCell_' + str(i).zfill(2)
             # setattr(self, name, cell)
             # cells.append(getattr(self, name))

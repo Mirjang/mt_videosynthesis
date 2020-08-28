@@ -28,7 +28,7 @@ from trajgru.trajgru import TrajGRU
 
 class DvdConditionalGenerator(nn.Module):
 
-    def __init__(self, latent_dim=4, ch=8, nframes=48, step_frames = 1, bn=True):
+    def __init__(self, latent_dim=4, ch=8, nframes=48, step_frames = 1, bn=True, trajgru = False):
         super().__init__()
         self.step_frames = step_frames
         self.latent_dim = latent_dim
@@ -56,15 +56,15 @@ class DvdConditionalGenerator(nn.Module):
             # GResBlock(8 * ch, 8 * ch, n_class=1, upsample_factor=1),
             # GResBlock(8 * ch, 8 * ch, n_class=1),
             #ConvGRU(8 * ch, hidden_sizes=[8 * ch, 16 * ch, 8 * ch], kernel_sizes=[3, 5, 3], n_layers=3),
-            ConvGRU(8 * ch, hidden_sizes=[8 * ch], kernel_sizes=3, n_layers=1),
+            ConvGRU(8 * ch, hidden_sizes=[8 * ch], kernel_sizes=3, n_layers=1, trajgru=trajgru),
             GResBlock(8 * ch, 8 * ch, n_class=1, upsample_factor=2, bn = bn),
             GResBlock(8 * ch, 4 * ch, n_class=1, upsample_factor=1, bn = bn),
             #ConvGRU(8 * ch, hidden_sizes=[8 * ch, 16 * ch, 8 * ch], kernel_sizes=[3, 5, 3], n_layers=3),
-            ConvGRU(4 * ch, hidden_sizes=[4 * ch], kernel_sizes=3, n_layers=1),
+            ConvGRU(4 * ch, hidden_sizes=[4 * ch], kernel_sizes=3, n_layers=1, trajgru=trajgru),
             GResBlock(4 * ch, 4 * ch, n_class=1, upsample_factor=2, bn = bn),
             GResBlock(4 * ch, 2 * ch, n_class=1, upsample_factor=1, bn = bn),
             #ConvGRU(4 * ch, hidden_sizes=[4 * ch, 8 * ch, 4 * ch], kernel_sizes=[3, 5, 5], n_layers=3),
-            ConvGRU(2 * ch, hidden_sizes=[2 * ch], kernel_sizes=3, n_layers=1),
+            ConvGRU(2 * ch, hidden_sizes=[2 * ch], kernel_sizes=3, n_layers=1, trajgru=trajgru),
             GResBlock(2 * ch, 2 * ch, n_class=1, upsample_factor=2, bn = bn),
             GResBlock(2 * ch, 1 * ch, n_class=1, upsample_factor=1, bn = bn)
    
@@ -332,7 +332,9 @@ class DvdGanModel(BaseModel):
 
             #netG = DVDGan(self.nframes,input_nc ,ngf = 32, latent_nc=120,fp_levels = 3, res = self.opt.resolution, )
         elif opt.generator == "trajgru": 
-            netG = DVDGan(self.nframes,input_nc,ngf = 16, latent_nc=120, fp_levels = 3, trajgru=True, res = self.opt.resolution, )
+            netG = DvdConditionalGenerator(nframes = self.nframes, ch = 16, latent_dim = 8, step_frames = 1, bn = True, trajgru=True)
+
+          #  netG = DVDGan(self.nframes,input_nc,ngf = 16, latent_nc=120, fp_levels = 3, trajgru=True, res = self.opt.resolution, )
         elif opt.generator == "dvdgansimple":
             netG = GRUEncoderDecoderNet(self.nframes,input_nc ,ngf = 32, hidden_dims=128, enc2hidden = True)
 
