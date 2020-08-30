@@ -1,7 +1,7 @@
 set -ex
 
 # GPU
-GPU_ID=1
+GPU_ID=0
 
 if [[ $(nvidia-smi | grep "^|    $GPU_ID    ") ]]; then
     read -p "GPU currently in use, continue? " -n 1 -r
@@ -14,8 +14,8 @@ fi
 
 VISDOM_PORT=8197
 
-DATASETS_DIR=/content/gdrive/\"My Drive\"/landscapes/data/yt
-CHECKPOINT_DIR=/content/gdrive/\"My Drive\"/landscapes/checkpoints
+DATASETS_DIR=/content/gdrive/"My Drive"/landscapes/data/yt
+CHECKPOINT_DIR=/content/gdrive/"My Drive"/landscapes/checkpoints
 
 
 #DATASET=movingmnist

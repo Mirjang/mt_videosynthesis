@@ -34,7 +34,12 @@ class BaseModel():
         self.opt = opt
         self.gpu_ids = opt.gpu_ids
         self.isTrain = opt.isTrain
-        self.device = torch.device('cuda:{}'.format(self.gpu_ids[0])) if self.gpu_ids else torch.device('cpu')
+        if gpu_ids == "xla": 
+            import torch_xla
+            import torch_xla.core.xla_model as xm
+            self.device = xm.xla_device()
+        else: 
+            self.device = torch.device('cuda:{}'.format(self.gpu_ids[0])) if self.gpu_ids else torch.device('cpu')
         self.load_dir = os.path.join(opt.checkpoints_dir, opt.name)
         self.save_dir = os.path.join(opt.checkpoints_dir, opt.name)
         if opt.resize_or_crop != 'scale_width':
