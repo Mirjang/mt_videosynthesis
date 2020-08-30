@@ -35,13 +35,13 @@ def main(file, num_val = 500, write = True):
 
 if __name__ == "__main__": 
     if(len(sys.argv) < 2): 
-        print(f"SYNTAX: {sys.argv[0]} part/to/dataset [num_val_clips]")
+        print(f"SYNTAX: {sys.argv[0]} path/to/dataset [num_val_clips]")
         exit()
     file = sys.argv[1]
     if os.path.isdir(sys.argv[1]): 
         file = os.path.join(sys.argv[1], "info.csv")
 
-    num_val = 500
+    num_val = 200
     if len(sys.argv) == 3: 
         num_val = int(sys.argv[2])
     main(file, num_val)

@@ -34,7 +34,7 @@ class BaseModel():
         self.opt = opt
         self.gpu_ids = opt.gpu_ids
         self.isTrain = opt.isTrain
-        if gpu_ids == "xla": 
+        if self.gpu_ids == "xla": 
             import torch_xla
             import torch_xla.core.xla_model as xm
             self.device = xm.xla_device()
