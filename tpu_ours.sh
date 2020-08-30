@@ -14,7 +14,7 @@ fi
 
 VISDOM_PORT=8197
 
-DATASETS_DIR="/content/mydrive/landscapes/data/yt"
+DATASETS_DIR="/content/data/yt"
 CHECKPOINT_DIR="/content/mydrive/landscapes/checkpoints"
 
 
