@@ -14,8 +14,8 @@ fi
 
 VISDOM_PORT=8197
 
-DATASETS_DIR="/content/gdrive/My Drive/landscapes/data/yt"
-CHECKPOINT_DIR="/content/gdrive/My Drive/landscapes/checkpoints"
+DATASETS_DIR="/content/mydrive/landscapes/data/yt"
+CHECKPOINT_DIR="/content/mydrive/landscapes/checkpoints"
 
 
 #DATASET=movingmnist
