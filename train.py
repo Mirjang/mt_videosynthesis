@@ -99,6 +99,7 @@ if __name__ == '__main__':
         epoch_iter = 0
         losses={}
         for i, data in enumerate(dataset):
+            
             if os.path.exists(abort_file): 
                 exit("Abort using file: " + abort_file)
 
@@ -110,7 +111,7 @@ if __name__ == '__main__':
             model.set_input(data)
             model.compute_losses(epoch, verbose = verbose)
 
-            if i % n_acc_batches: # accumulate gradients for less noisy updates
+            if (i+1) % n_acc_batches == 0: # accumulate gradients for less noisy updates
                 model.optimize_parameters(epoch, verbose = verbose)
 
             verbose = False or opt.verbose
