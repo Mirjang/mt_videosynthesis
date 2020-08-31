@@ -332,7 +332,7 @@ class DvdGanModel(BaseModel):
 
             #netG = DVDGan(self.nframes,input_nc ,ngf = 32, latent_nc=120,fp_levels = 3, res = self.opt.resolution, )
         elif opt.generator == "trajgru": 
-            netG = DvdConditionalGenerator(nframes = self.nframes, ch = 16, latent_dim = 8, step_frames = 1, bn = True, trajgru=True)
+            netG = DvdConditionalGenerator(nframes = self.nframes, ch = 32, latent_dim = 8, step_frames = 1, bn = True, trajgru=True)
 
           #  netG = DVDGan(self.nframes,input_nc,ngf = 16, latent_nc=120, fp_levels = 3, trajgru=True, res = self.opt.resolution, )
         elif opt.generator == "dvdgansimple":
@@ -344,11 +344,11 @@ class DvdGanModel(BaseModel):
 
         if self.isTrain:
             #default chn = 128
-            netDs = DvdSpatialDiscriminator(chn = 16, sigmoid = not self.wgan, cgan = self.conditional)
+            netDs = DvdSpatialDiscriminator(chn = 32, sigmoid = not self.wgan, cgan = self.conditional)
             self.netDs = networks.init_net(netDs, opt.init_type, opt.init_gain, self.gpu_ids)
 
             #default chn = 128
-            netDt = DvdTemporalDiscriminator(chn = 16, sigmoid = not self.wgan)
+            netDt = DvdTemporalDiscriminator(chn = 32, sigmoid = not self.wgan)
             self.netDt = networks.init_net(netDt, opt.init_type, opt.init_gain, self.gpu_ids)
 
             # define loss functions

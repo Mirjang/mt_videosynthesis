@@ -121,7 +121,6 @@ class LHC(nn.Module):
         return torch.cat([px,py], dim = 0).expand(B,-1,-1,-1).contiguous()
 
     def forward(self, x):
-        torch.autograd.set_detect_anomaly(True)
 
         x = x * 2 - 1
         if len(x.shape) == 5: # B x T x 3 x W x H -> B x 3 x W x H (first frame - other methods might use more frames -- esp for easier training)
@@ -135,7 +134,7 @@ class LHC(nn.Module):
         #x_part = x.view(B, C, W*H)
         x_part = x.view(B, C, num_particles).contiguous()
         ref_pos = self.uniform_grid(B,W,H,device=x.device) #B,2,W,H
-        pos = self.uniform_grid(B,W,H,device=x.device).view(B,2, -1)
+        pos = self.uniform_grid(B,W,H,device=x.device).view(B,2, -1) #B,2,W*H
 
         
         for i in range(self.nframes):
@@ -157,21 +156,20 @@ class LHC(nn.Module):
 
                 v = self.velocity_mlp(x_part)
                 #integrate position
-               # pos = pos + v #.clamp(-1e3,1e3)
+              #  pos = pos + v #.clamp(-1e3,1e3)
 
 
-#            pos = pos.clamp(-1,1)
+            pos = pos.clamp(-1.25,1.25) #keep stuff from going super bad while still allowing particles to go out of frame
             #sample frame
             #distance between the reference pos (element in matrix) and actual pos of the particle
             #this is just kindof a hack so we can use std pytorch to simulate our particles
 
-            pos_e = pos.view(B, 2, W, H).unsqueeze(2).expand(B,2, num_particles, W, H)
+            pos_e = pos.unsqueeze(-1).unsqueeze(-1) #B,2,W*H -> # B,2, WxH, 1,1
             ref_pos_e = ref_pos.unsqueeze(2).expand(B,2, num_particles, W, H)
             #print(pos_e.shape, ref_pos_e.shape)
             dist = ((pos_e - ref_pos_e)**2).sum(dim = 1, keepdim = True) # B,1, WxH, W, H
             kdist = self.distance_kernel(dist, scale = kernel_scale)
         
-            #kdist = kdist.view(B, 1, num_particles)#.expand(B,1, num_particles, W, H) # B, 1 W*H
             #print(kdist.shape, x_part.shape)
             x_part_e = x_part.view(B, C, W, H).unsqueeze(2) # B, C, 1, W, H
             #print(x_part_e.shape)
@@ -182,16 +180,16 @@ class LHC(nn.Module):
             if self.debug: 
                 pd = pos_e - ref_pos_e
                 print("v: ", v.min().item(), v.max().item())
+                print("p: ", pos.min().item(), pos.max().item())
                 print("r: ", ref_pos.min().item(), ref_pos.max().item())
-
-                print("p: " , pd.min().item(), pd.max().item(), (pd**2).min().item(), (pd**2).max().item())
                 print("d: ", dist.min().item(), dist.max().item(), "NAN" if (dist != dist).any() else "")
                 print("k: ", kdist.min().item(), kdist.max().item(), "NAN" if (kdist != kdist).any() else "")
                 
                 dmin, dmax = dist.min().item(), dist.max().item()
                 print(f"Dmin: {dmin} Dmax: {dmax}")
-                for ii in range (4): 
-                    setattr(self.debug,f"heatmap_{ii + 4*i}", (kdist[:,:,ii,...].detach().cpu() - dmin) / dmax )
+                for ii in range(4): 
+                    debframe = num_particles // 4 * ii
+                    setattr(self.debug,f"heatmap_{ii + 4*i}", (kdist[:,:,debframe,...].detach().cpu() - dmin) / dmax )
                 setattr(self.debug,f"heatmap_{0}", (sample[:,:3,...].detach().cpu() +1) /2)
      #   y = y.permute(1,0,2,3,4).contiguous() #B,T,C,W,H
         y = y.view(-1, C, W, H)
@@ -201,6 +199,7 @@ class LHC(nn.Module):
         y = torch.cat([first_frame, y], dim = 1)
 
         y = (y+1) / 2.0 #[-1,1] -> [0,1] for vis
+
         return y
 
 from .dvdgan_model import DvdGanModel
@@ -272,7 +271,10 @@ class LHCModel(DvdGanModel):
             self.loss_names += ['Ds_real', 'Ds_fake', 'Dt_real', 'Dt_fake', 'Ds_GP', 'Dt_GP']
 
   
+        #debug
         netG = LHC(latent_dim=16, ngf=16,npf = 128,steps_per_frame = 1, pd = 2, knn = 0, sample_kernel = "exp", nframes=self.nframes, debug = self)
+        #real
+        #netG = LHC(latent_dim=16, ngf=16,npf = 128,steps_per_frame = 1, pd = 2, knn = 0, sample_kernel = "exp", nframes=self.nframes)
 
         self.netG = networks.init_net(netG, opt.init_type, opt.init_gain, self.gpu_ids)
         

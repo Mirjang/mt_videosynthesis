@@ -67,9 +67,10 @@ def init_weights(net, init_type='normal', gain=0.02):
 
 def init_net(net, init_type='normal', init_gain=0.02, gpu_ids=[]):
     if gpu_ids == "xla":
-            import torch_xla
-            import torch_xla.core.xla_model as xm
-            device = xm.xla_device()
+        
+            import torch_xla #noqa
+            import torch_xla.core.xla_model as xm #noqa
+            device = xm.xla_device() #noqa
             net.to(device)
     elif len(gpu_ids) > 0:
         assert(torch.cuda.is_available())
