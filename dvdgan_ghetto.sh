@@ -16,6 +16,7 @@ VISDOM_PORT=8197
 
 DATASETS_DIR=/mnt/raid/patrickradner/datasets
 CHECKPOINT_DIR=/mnt/raid/patrickradner/checkpoints
+RESULTS_DIR=/mnt/raid/patrickradner/results
 
 NAME=DVD_GAN
 

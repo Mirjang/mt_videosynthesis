@@ -286,8 +286,6 @@ class DvdGanModel(BaseModel):
 
         self.opt = opt
         self.iter = 1
-        self.ndsframes = opt.dvd_spatial_frames
-        assert self.nframes > self.ndsframes+1, "number of frames sampled for disc should be leq to number of total frames generated (length-1)"
         print(self.device)
 
         self.train_range = (1,self.nframes)
@@ -306,11 +304,12 @@ class DvdGanModel(BaseModel):
 
         # specify the training losses you want to print out. The program will call base_model.get_current_losses
         self.loss_names = ['Gs', 'Gt', 'Ds', 'Dt']
-        if opt.pretrain_epochs > 0:
-            self.loss_names.append('G_L1')
+ 
         # specify the models you want to save to the disk. The program will call base_model.save_networks and base_model.load_networks
         if self.isTrain:
             self.model_names = ['netG', 'netDs', 'netDt']
+            if opt.pretrain_epochs > 0:
+                self.loss_names.append('G_L1')
         else:  # during test time, only load Gs
             self.model_names = ['netG']
 
@@ -343,6 +342,9 @@ class DvdGanModel(BaseModel):
         self.netG = networks.init_net(netG, opt.init_type, opt.init_gain, self.gpu_ids)
 
         if self.isTrain:
+            self.ndsframes = opt.dvd_spatial_frames
+            assert self.nframes > self.ndsframes+1, "number of frames sampled for disc should be leq to number of total frames generated (length-1)"
+       
             #default chn = 128
             netDs = DvdSpatialDiscriminator(chn = 32, sigmoid = not self.wgan, cgan = self.conditional)
             self.netDs = networks.init_net(netDs, opt.init_type, opt.init_gain, self.gpu_ids)

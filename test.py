@@ -10,7 +10,7 @@ from PIL import Image
 import time
 import re
 
-from util.video_output import VideoOutput
+import torchvision
 
 def save_tensor_image(input_image, image_path):
     if isinstance(input_image, torch.Tensor):
@@ -28,11 +28,6 @@ def save_tensor_image(input_image, image_path):
 if __name__ == '__main__':
     opt = TestOptions().parse()
 
-    if opt.id_mapping: 
-        id_mapping = list(opt.id_mapping.split(","))
-        opt.id_mapping = list(map(int, id_mapping)) 
-        print("using mapping: " + str(opt.id_mapping))
-
     # hard-code some parameters for test
     opt.num_threads = 1   # test code only supports num_threads = 1
     opt.batch_size = 1    # test code only supports batch_size = 1
@@ -44,9 +39,6 @@ if __name__ == '__main__':
     dataset = data_loader.load_data()
     dataset_size = len(data_loader)
     print('#test images = %d' % dataset_size)
-    print('#test objects = %d' % opt.nObjects)
-
-    video = True
 
     print('>>> create model <<<')
     model = create_model(opt)
@@ -59,15 +51,12 @@ if __name__ == '__main__':
     web_dir = os.path.join(opt.results_dir, opt.name, '%s_%s' % (opt.phase, opt.epoch))
     webpage = html.HTML(web_dir, 'Experiment = %s, Phase = %s, Epoch = %s' % (opt.name, opt.phase, opt.epoch))
 
-    if video: 
-        video_output = VideoOutput(opt)
-
     sum_time = 0
     total_runs = dataset_size
     warm_up = 50
-
+    block = 0
     # test with eval mode. This only affects layers like batchnorm and dropout.
-
+    out_buffer = []
     if opt.eval:
         model.eval()
     for i, data in enumerate(dataset):
@@ -81,7 +70,7 @@ if __name__ == '__main__':
         torch.cuda.synchronize()
         a = time.perf_counter()
         
-        model.test()
+        model.test() #forward pass no grad
 
 
         b = time.perf_counter()
@@ -89,20 +78,33 @@ if __name__ == '__main__':
         if i > warm_up:  # give torch some time to warm up
             sum_time += ((b-a) * 1000)
 
-        visuals = model.get_current_visuals()
-        img_path = model.get_image_paths()
+        vids = model.predicted_video 
+        out_buffer.append([*torch.split(vids, 1, dim=0)])
+
+       #visuals = model.get_current_visuals()
+       # img_path = model.get_image_paths()
         if i % 10 == 0:
             print(opt.name + ":")
-            print('processing (%04d)-th image... %s' % (i, img_path))
+            print('processing (%04d)-th sample...' % (i))
             
-        save_images(webpage, visuals, img_path, aspect_ratio=opt.aspect_ratio, width=opt.display_winsize)
-        if video: 
-            video_output.writeFrame(visuals)
+      #  save_images(webpage, visuals, img_path, aspect_ratio=opt.aspect_ratio, width=opt.display_winsize)
+        if len(out_buffer) >= opt.grid**2: 
 
+            grid = out_buffer[:opt.grid**2]
+            out_buffer = out_buffer[opt.grid**2: ]
+            rows = []
+            for x in range(opt.grid): 
+                a = x*opt.grid
+                b = a + opt.grid
+                row = torch.cat(out_buffer[a:b], dim = -2)
+                rows.append(row)
+
+            out = torch.cat(rows, dim = -1)
+            torchvision.io.write_video(os.path.join(web_dir, f"fake_block{block}.mp4"), out, opt.fps / 2)
+            block += 1
 
     print('mean eval time: ', (sum_time / (total_runs - warm_up)))
     if video: 
         video_output.close()
     # save the website
-    webpage.save()
     print("DONE: " + opt.name)

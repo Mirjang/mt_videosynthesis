@@ -25,33 +25,33 @@ from .dvdgansimple_model import GRUEncoderDecoderNet
 import models.kernels as kernels
 #import torch.nn.utils.spectral_norm as SpectralNorm
 
-# def GGDown(ch, bn = False, weight_norm = None): 
-#     return nn.Sequential(*[GResBlock(ch, ch, kernel_size=(3,3), downsample_factor=1, upsample_factor=1, bn=bn, weight_norm=weight_norm),
-#     nn.ReLU(), 
-#     GResBlock(ch, ch*2, kernel_size=(3,3), downsample_factor=2, bn=bn, weight_norm=weight_norm),
-#     nn.ReLU()])
-
-# def GGUp(ch, bn = False, weight_norm = None): 
-#     return nn.Sequential(*[GResBlock(ch, ch, kernel_size=(3,3), downsample_factor=1, upsample_factor=1, bn=bn, weight_norm=weight_norm),
-#     nn.ReLU(), 
-#     GResBlock(ch, ch//2, kernel_size=(3,3), upsample_factor=2, bn=bn, weight_norm=weight_norm),
-#     nn.ReLU()])
-
 def GGDown(ch, bn = False, weight_norm = SpectralNorm): 
-    return nn.Sequential(*[
-    nn.Conv2d(ch, ch*2, kernel_size=(3,3), stride = 1, padding = 1),
-    nn.ReLU(),
-    nn.AvgPool2d(2,2),
-    ]) 
+    return [GResBlock(ch, ch, kernel_size=(3,3), downsample_factor=1, upsample_factor=1, bn=bn, weight_norm=weight_norm),
+    nn.ReLU(), 
+    GResBlock(ch, ch*2, kernel_size=(3,3), downsample_factor=2, bn=bn, weight_norm=weight_norm),
+    nn.ReLU()]
 
 def GGUp(ch, bn = False, weight_norm = SpectralNorm): 
-    return nn.Sequential(*[
-    nn.Conv2d(ch, ch//2, kernel_size=(3,3), stride = 1, padding = 1),
-    nn.ReLU(),
-    nn.Upsample(scale_factor=2),
-    ]) 
-def conv_relu(in_dims, out_dims, stride = 1):
-    layer = [nn.Conv2d(in_dims, out_dims, kernel_size=3, bias=True, padding=1, stride=stride, padding_mode="reflect")]
+    return [GResBlock(ch, ch, kernel_size=(3,3), downsample_factor=1, upsample_factor=1, bn=bn, weight_norm=weight_norm),
+    nn.ReLU(), 
+    GResBlock(ch, ch//2, kernel_size=(3,3), upsample_factor=2, bn=bn, weight_norm=weight_norm),
+    nn.ReLU()]
+
+# def GGDown(ch, bn = False, weight_norm = SpectralNorm): 
+#     return [
+#     nn.Conv2d(ch, ch*2, kernel_size=(3,3), stride = 1, padding = 1),
+#     nn.ReLU(),
+#     nn.AvgPool2d(2,2),
+#     ] 
+
+# def GGUp(ch, bn = False, weight_norm = SpectralNorm): 
+#     return [
+#     nn.Conv2d(ch, ch//2, kernel_size=(3,3), stride = 1, padding = 1),
+#     nn.ReLU(),
+#     nn.Upsample(scale_factor=2),
+#     ] 
+def conv_relu(in_dims, out_dims, stride = 1, weight_norm = SpectralNorm):
+    layer = [weight_norm(nn.Conv2d(in_dims, out_dims, kernel_size=3, bias=True, padding=1, stride=stride, padding_mode="reflect"))]
     layer += [nn.ReLU()]
     return layer
 
@@ -64,12 +64,13 @@ class LHC(nn.Module):
         self.nframes = nframes -1 # first frame is just input frame
         self.knn = knn
         self.steps_per_frame = steps_per_frame
+        self.truncation_dist = .8
 
         encoder =[
             *conv_relu(3,ngf),
-            GGDown(ngf), #-> ngf*2
+            *GGDown(ngf), #-> ngf*2
             nn.ReLU(), 
-            GGDown(ngf*2),  #-> ngf*4
+            *GGDown(ngf*2),  #-> ngf*4
             *conv_relu(ngf*4,npf),
         ]
         self.encoder = nn.Sequential(*encoder)
@@ -90,7 +91,7 @@ class LHC(nn.Module):
         ]
         self.velocity_mlp = nn.Sequential(*velocity_mlp)
 
-        self.distance_kernel = kernels.TruncatedExponentialKernel(sigma = .05, truncation_dist = .9)
+        self.distance_kernel = kernels.TruncatedExponentialKernel(sigma = 1, truncation_dist = self.truncation_dist)
         #self.distance_kernel = kernels.LinearKernel()
         #self.distance_kernel = kernels.ExponentialKernel(sigma = 1)
 
@@ -99,17 +100,19 @@ class LHC(nn.Module):
             *conv_relu(npf,ngf*2),
           #  GGUp(ngf*4), #-> ngf*2
           #  nn.ReLU(), 
-            GGUp(ngf*2),  #-> ngf
+            *GGUp(ngf*2),  #-> ngf
             nn.ReLU(), 
             nn.Conv2d(ngf, 3, kernel_size=3, bias=True, padding=1, stride=1, padding_mode="reflect"),
-            nn.Tanh(),
         ]
         self.decoder = nn.Sequential(*decoder)
 
-        self.encoder = nn.Sequential(*conv_relu(3,4))
-        self.decoder = nn.Sequential(*conv_relu(4,3))
+        # self.encoder = nn.Sequential(*conv_relu(3,4))
+        # self.decoder = nn.Sequential(*conv_relu(4,3))
 
         self.it = 0
+
+        if self.debug: 
+            self.debug.visual_names.insert(0,"heatmap_video")
 
     def uniform_grid(self,B,W,H, device = None):
         step_h = 2./(H-1)
@@ -122,7 +125,7 @@ class LHC(nn.Module):
         return torch.cat([px,py], dim = 0).expand(B,-1,-1,-1).contiguous()
 
     def forward(self, x):
-
+        torch.autograd.set_detect_anomaly(True)
         x = x * 2 - 1
         if len(x.shape) == 5: # B x T x 3 x W x H -> B x 3 x W x H (first frame - other methods might use more frames -- esp for easier training)
             x = x[:,0,...]
@@ -140,6 +143,11 @@ class LHC(nn.Module):
 
      #   y = torch.zeros((B,self.nframes,3,64,64), device = x.device)
  
+        if self.debug: 
+            self.debug.heatmap_video = torch.zeros((B,self.nframes,3,W,H))
+            
+
+
         for i in range(self.nframes):
         #    print(f"----------------{i}-----------")
         #    print("x: ", x_part.min().item(), x_part.max().item())#, v.min().item(), v.max().item())
@@ -155,61 +163,62 @@ class LHC(nn.Module):
                 #x_part, v = xv.split([C, 2], dim = 1)# B,C+2,WxH --> B,C,WxH; B,2,WxH
 
                 # update latent info and compute velocity
-                #x_part = x_part + self.rule_mlp(x_part)
+                x_part = x_part + self.rule_mlp(x_part)
 
-                #v = self.velocity_mlp(x_part)
+                v = self.velocity_mlp(x_part)
                 #integrate position
-              #  pos = pos + v #.clamp(-1e3,1e3)
+                pos = pos + v #.clamp(-1e-2,1e-2)
                 pass
 
 
-            pos = pos.clamp(-1.25,1.25) #keep stuff from going super bad while still allowing particles to go out of frame
+            pos = pos.clamp(-1.1,1.1) #keep stuff from going super bad while still allowing particles to go out of frame
             #sample frame
             #distance between the reference pos (element in matrix) and actual pos of the particle
             #this is just kindof a hack so we can use std pytorch to simulate our particles
 
             pos_e = pos.unsqueeze(-1).unsqueeze(-1) #B,2,W*H -> # B,2, WxH, 1,1
             ref_pos_e = ref_pos.unsqueeze(2).expand(B,2, num_particles, W, H)
-            #print(pos_e.shape, ref_pos_e.shape)
             dist = ((pos_e - ref_pos_e)**2).sum(dim = 1, keepdim = True) # B,1, WxH, W, H
             kdist = self.distance_kernel(dist, scale = kernel_scale)
-        
-            #print(kdist.shape, x_part.shape)
-            x_part_e = x_part.view(B, C, W, H).unsqueeze(2) # B, C, 1, W, H
-            #print(x_part_e.shape)
-            #print((kdist*x_part_e).shape)
-            sample = torch.sum(kdist * x_part_e, dim = 2)#(B, 1, W*H, W, H) * (B, C, 1, W, H) -> (B, C, W, H)
-            hits = torch.sum(kdist > .5, dim = 2)
 
-            sample = sample# / hits.float()
+            x_part_e = x_part.view(B, C, W, H).unsqueeze(2) # B, C, 1, W, H
+            sample = torch.sum(kdist * x_part_e, dim = 2)#(B, 1, W*H, W, H) * (B, C, 1, W, H) -> (B, C, W, H)
+            hits = torch.sum(kdist > self.truncation_dist, dim = 2).detach()
+            hits[hits == 0] = 1 #otherwise we´d have 0/0
+            sample = sample / hits.float()
+            #sample = x
             y[:,i] = sample
 
             if self.debug: 
-                pd = pos_e - ref_pos_e
-                if i == 0: 
-                    print("x: ", x_part.min().item(), x_part.max().item())
-               # print("v: ", v.min().item(), v.max().item())
+                pass
+
+                #print("x: ", x_part.min().item(), x_part.max().item())
+                # print("v: ", v.min().item(), v.max().item())
                 # print("p: ", pos.min().item(), pos.max().item())
                 # print("r: ", ref_pos.min().item(), ref_pos.max().item())
                 # print("d: ", dist.min().item(), dist.max().item(), "NAN" if (dist != dist).any() else "")
-               # print("k: ", kdist.min().item(), kdist.max().item(), "NAN" if (kdist != kdist).any() else "")
-                
-                
-                for ii in range(4): 
-                    debframe = [0, num_particles//2,num_particles//2+1, W*H -1][ii]
-                    setattr(self.debug,f"heatmap_{ii + 4*i}", (kdist[:,:,debframe,...].detach().cpu()))
-                if i <5: 
-                    smin,smax = sample.min(), sample.max()
-                    setattr(self.debug,f"heatmap_{2*i}", ((sample[:,:3,...] -smin) / (smax-smin)).detach().cpu())
+                print("k: ", kdist.min().item(), kdist.max().item(), "NAN" if (kdist != kdist).any() else "")
+                hmax = 100
+                self.debug.heatmap_video[:,i] = (torch.clamp(hits.float(), max = hmax)/hmax).detach().cpu().expand(-1, 3, -1,-1)
+                if self.debug.iter % 200: 
+                    print("hits: ", hits.min().item(), hits.max().item())
 
-                    dsample = self.decoder(sample)
-                    dsmin,dsmax = dsample.min(), dsample.max()
-                    setattr(self.debug,f"heatmap_{2*i +1}", ((dsample[:,:3,...] -dsmin) / (dsmax-dsmin)).detach().cpu())
-                    print("y: ", dsample.min().item(), dsample.max().item())
-               # print("hits: ", hits.min().item(), hits.max().item())
-     #   y = y.permute(1,0,2,3,4).contiguous() #B,T,C,W,H
+
+                # for ii in range(4): 
+                #     debframe = [0, num_particles//2,num_particles//2+1, W*H -1][ii]
+                #     setattr(self.debug,f"heatmap_{ii + 4*i}", (kdist[:,:,debframe,...].detach().cpu()))
+                # if i <5: 
+                #     smin,smax = sample.min(), sample.max()
+                #     setattr(self.debug,f"heatmap_{2*i}", ((sample[:,:3,...] -smin) / (smax-smin)).detach().cpu())
+
+                #     dsample = torch.tanh(self.decoder(sample))
+                #     dsmin,dsmax = dsample.min(), dsample.max()
+                #     setattr(self.debug,f"heatmap_{2*i +1}", ((dsample[:,:3,...] -dsmin) / (dsmax-dsmin)).detach().cpu())
+                #     # if i == 0: 
+                #     #     print("y: ",dsmin.item(), dsmax.item())
+
         y = y.view(-1, C, W, H)
-        y = self.decoder(y)
+        y = torch.tanh(self.decoder(y))
         *_, W, H = first_frame.shape
         y = y.view(B, self.nframes, 3, W, H) # B, T/S, C*S, W, H
         y = torch.cat([first_frame, y], dim = 1)
@@ -220,7 +229,7 @@ class LHC(nn.Module):
 from .dvdgan_model import DvdGanModel
 class LHCModel(DvdGanModel):
     def name(self):
-        return 'DHCModel'
+        return 'LHCModel'
 
     @staticmethod
     def modify_commandline_options(parser, is_train=True):
@@ -236,8 +245,9 @@ class LHCModel(DvdGanModel):
     def initialize(self, opt):
         BaseModel.initialize(self, opt)
         self.isTrain = opt.isTrain
-        self.num_display_frames = min(opt.num_display_frames, int(opt.max_clip_length*opt.fps)-1)
         self.nframes = int(opt.max_clip_length * opt.fps / opt.skip_frames)
+        self.num_display_frames = min(opt.num_display_frames, self.nframes)
+
         self.opt = opt
         self.iter = 0
         self.ndsframes = opt.dvd_spatial_frames
@@ -260,9 +270,9 @@ class LHCModel(DvdGanModel):
         for i in range(self.num_display_frames):
             self.visual_names += [f"frame_{i}"]
 
-        self.num_heatmaps = self.nframes * 4 -4
-        for i in range(self.num_heatmaps):
-            self.visual_names += [f"heatmap_{i}"]
+        # self.num_heatmaps = self.nframes * 4 -4
+        # for i in range(self.num_heatmaps):
+        #     self.visual_names += [f"heatmap_{i}"]
 
         # specify the training losses you want to print out. The program will call base_model.get_current_losses
         self.loss_names = ['Gs', 'Gt', 'Ds', 'Dt']
@@ -287,9 +297,9 @@ class LHCModel(DvdGanModel):
 
   
         #debug
-        netG = LHC(latent_dim=16, ngf=16,npf = 128,steps_per_frame = 1, pd = 2, knn = 0, sample_kernel = "exp", nframes=self.nframes, debug = self)
+        netG = LHC(latent_dim=16, ngf=32,npf = 128,steps_per_frame = 1, pd = 2, knn = 0, sample_kernel = "exp", nframes=self.nframes, debug = self)
         #real
-        #netG = LHC(latent_dim=16, ngf=16,npf = 128,steps_per_frame = 1, pd = 2, knn = 0, sample_kernel = "exp", nframes=self.nframes)
+        #netG = LHC(latent_dim=16, ngf=32,npf = 128,steps_per_frame = 1, pd = 2, knn = 0, sample_kernel = "exp", nframes=self.nframes)
 
         self.netG = networks.init_net(netG, opt.init_type, opt.init_gain, self.gpu_ids)
         
@@ -336,16 +346,16 @@ class LHCModel(DvdGanModel):
         self.loss_Ds_GP = 0
         self.loss_Dt_GP = 0
 
-    def optimize_parameters(self, epoch, verbose = False):
-        self.optimizer_G.step()
-        self.optimizer_G.zero_grad()
-        print("opt")
-        pass
+    # def optimize_parameters(self, epoch, verbose = False):
+    #     self.optimizer_G.step()
+    #     self.optimizer_G.zero_grad()
+    #     pass
 
-    def compute_losses(self, epoch, verbose = False):
-        Te = self.nframes
-        B, TT,*_ = self.target_video.shape
+    # def compute_losses(self, epoch, verbose = False):
+    #     Te = self.nframes
+    #     B, TT,*_ = self.target_video.shape
 
-        self.forward(frame_length=Te)
-        self.loss_G_L1 =self.criterionL1(self.predicted_video[:,:4], self.target_video[:,:4]) * self.opt.lambda_L1
-        self.loss_G_L1.backward()
+    #     self.forward(frame_length=Te)
+    #     self.loss_G_L1 =self.criterionL1(self.predicted_video[:,1], self.target_video[:,1]) * self.opt.lambda_L1
+    #     self.loss_G_L1.backward()
+    #     #diagnose_network(self.netG,"G")

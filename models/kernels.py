@@ -38,7 +38,8 @@ class TruncatedExponentialKernel():
 
     def __call__(self, x, scale = 1.): 
         x = torch.exp(-x/(self.twosigma))
-        x[x<self.truncation_dist] = 0
+        #x[x<self.truncation_dist] = 0
+        x = x * (x>self.truncation_dist).float()
         return scale * x
 
 

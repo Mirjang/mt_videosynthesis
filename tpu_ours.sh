@@ -16,6 +16,7 @@ VISDOM_PORT=8197
 
 DATASETS_DIR="/content/landscapes/data/"
 CHECKPOINT_DIR="/content/landscapes/checkpoints"
+RESULTS_DIR="/mnt/raid/patrickradner/results"
 
 
 #DATASET=movingmnist
