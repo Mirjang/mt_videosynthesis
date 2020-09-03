@@ -161,8 +161,8 @@ class BaseModel():
                         save_tensor_image(net[i:i+1,0:3,:,:], save_path+str(i)+'.png')
                 else:
                     if len(self.gpu_ids) > 0 and torch.cuda.is_available():
-                        #torch.save(net.module.cpu().state_dict(), save_path) # << original
-                        torch.save(net.cpu().state_dict(), save_path)
+                        torch.save(net.module.cpu().state_dict(), save_path) # << original
+                        #torch.save(net.cpu().state_dict(), save_path)
                         net.cuda(self.gpu_ids[0])
                     else:
                         torch.save(net.cpu().state_dict(), save_path)
@@ -192,8 +192,8 @@ class BaseModel():
                     net_loaded = torch.load(load_path, map_location=str(self.device))
                     net.copy_(net_loaded)
                 else:
-                    if isinstance(net, torch.nn.DataParallel):
-                        net = net.module
+                    # if isinstance(net, torch.nn.DataParallel):
+                    #     net = net.module
                     print('loading the module from %s' % load_path)
                     # if you are using PyTorch newer than 0.4 (e.g., built from
                     # GitHub source), you can remove str() on self.device
@@ -201,11 +201,13 @@ class BaseModel():
                     if hasattr(state_dict, '_metadata'):
                         del state_dict._metadata
 
-
+                    print(state_dict.keys(),"\n\nBREAKBREAK\n\n", net.cpu().state_dict().keys())
+                    
                     # patch InstanceNorm checkpoints prior to 0.4
-                    for key in list(state_dict.keys()):  # need to copy keys here because we mutate in loop
-                        self.__patch_instance_norm_state_dict(state_dict, net, key.split('.'))
-                    net.load_state_dict(state_dict)
+                    # for key in list(state_dict.keys()):  # need to copy keys here because we mutate in loop
+                    #     self.__patch_instance_norm_state_dict(state_dict, net, key.split('.'))
+                    net.load_state_dict(state_dict, strict=False)
+                    setattr(self, name, net.to(self.device))
 
     # print network information
     def print_networks(self, verbose):

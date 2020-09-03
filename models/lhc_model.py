@@ -57,7 +57,7 @@ def conv_relu(in_dims, out_dims, stride = 1, weight_norm = SpectralNorm):
 
 class LHC(nn.Module):
 
-    def __init__(self, latent_dim=32, ngf=32,npf = 32,steps_per_frame = 1, pd = 2, knn = 8, sample_kernel = "exp", nframes=48, debug= None):
+    def __init__(self, latent_dim=32, ngf=32,npf = 32,steps_per_frame = 1, pd = 2, knn = 8, sample_kernel = "exp", nframes=48, debug= None, weight_norm = None):
         super().__init__()
         self.debug = debug
         self.latent_dim = latent_dim
@@ -65,6 +65,8 @@ class LHC(nn.Module):
         self.knn = knn
         self.steps_per_frame = steps_per_frame
         self.truncation_dist = .8
+        if weight_norm is None:
+            weight_norm = lambda x: x
 
         encoder =[
             *conv_relu(3,ngf),
@@ -76,22 +78,22 @@ class LHC(nn.Module):
         self.encoder = nn.Sequential(*encoder)
 
         rule_mlp = [
-            nn.Conv1d(npf, npf//2, kernel_size=1, bias=True),
+            weight_norm(nn.Conv1d(npf, npf//2, kernel_size=1, bias=True)),
             nn.ReLU(),
-            nn.Conv1d(npf//2, npf, kernel_size=1, bias=True),
+            weight_norm(nn.Conv1d(npf//2, npf, kernel_size=1, bias=True)),
             nn.ReLU(),
         ]
         self.rule_mlp = nn.Sequential(*rule_mlp)
 
         velocity_mlp = [
-            nn.Conv1d(npf, npf//2, kernel_size=1, bias=True),
+            weight_norm(nn.Conv1d(npf, npf//2, kernel_size=1, bias=True)),
             nn.ReLU(),
-            nn.Conv1d(npf//2, 2, kernel_size=1, bias=True),
+            weight_norm(nn.Conv1d(npf//2, 2, kernel_size=1, bias=True)),
             nn.Tanh()
         ]
         self.velocity_mlp = nn.Sequential(*velocity_mlp)
 
-        self.distance_kernel = kernels.TruncatedExponentialKernel(sigma = 1, truncation_dist = self.truncation_dist)
+        self.distance_kernel = kernels.TruncatedExponentialKernel(sigma = .5, truncation_dist = self.truncation_dist)
         #self.distance_kernel = kernels.LinearKernel()
         #self.distance_kernel = kernels.ExponentialKernel(sigma = 1)
 
@@ -124,8 +126,20 @@ class LHC(nn.Module):
         py = py.unsqueeze(0).expand(1,W,H)
         return torch.cat([px,py], dim = 0).expand(B,-1,-1,-1).contiguous()
 
+    #https://discuss.pytorch.org/t/efficient-distance-matrix-computation/9065/4
+    def pairwise_distances(self, x, y): 
+        B = x.size(0)
+        n = x.size(1)
+        m = y.size(1)
+        d = x.size(2)
+
+        x = x.unsqueeze(2).expand(B,n, m, d)
+        y = y.unsqueeze(1).expand(B,n, m, d)
+        dist = torch.pow(x - y, 2).sum(3) 
+        return dist
+
     def forward(self, x):
-        torch.autograd.set_detect_anomaly(True)
+       # torch.autograd.set_detect_anomaly(True)
         x = x * 2 - 1
         if len(x.shape) == 5: # B x T x 3 x W x H -> B x 3 x W x H (first frame - other methods might use more frames -- esp for easier training)
             x = x[:,0,...]
@@ -146,8 +160,6 @@ class LHC(nn.Module):
         if self.debug: 
             self.debug.heatmap_video = torch.zeros((B,self.nframes,3,W,H))
             
-
-
         for i in range(self.nframes):
         #    print(f"----------------{i}-----------")
         #    print("x: ", x_part.min().item(), x_part.max().item())#, v.min().item(), v.max().item())
@@ -158,14 +170,15 @@ class LHC(nn.Module):
                 # update based on neighbors
                 # if self.knn > 1:
                 #     d = (pos[...,None]@pos[...,None,:]).sum(dim=1)#outer product
-                #     _, knn_ind = torch.topk(d, self.knn, dim = 1, largest=False, sorted=False)
-                #     x_neigh = 1/self.knn * x_part[knn_ind].sum(dim = 1)
-                #x_part, v = xv.split([C, 2], dim = 1)# B,C+2,WxH --> B,C,WxH; B,2,WxH
+                    d = self.pairwise_distances(pos,pos)
+                    _, knn_ind = torch.topk(d, self.knn, dim = 1, largest=False, sorted=False)
+                    x_neigh = 1/self.knn * x_part[knn_ind].sum(dim = 1)
 
                 # update latent info and compute velocity
-                x_part = x_part + self.rule_mlp(x_part)
+                x_part = self.rule_mlp(x_part)
+                v = self.velocity_mlp(x_part)        
+                #x_part, v = xv.split([C, 2], dim = 1)# B,C+2,WxH --> B,C,WxH; B,2,WxH
 
-                v = self.velocity_mlp(x_part)
                 #integrate position
                 pos = pos + v #.clamp(-1e-2,1e-2)
                 pass
@@ -197,10 +210,10 @@ class LHC(nn.Module):
                 # print("p: ", pos.min().item(), pos.max().item())
                 # print("r: ", ref_pos.min().item(), ref_pos.max().item())
                 # print("d: ", dist.min().item(), dist.max().item(), "NAN" if (dist != dist).any() else "")
-                print("k: ", kdist.min().item(), kdist.max().item(), "NAN" if (kdist != kdist).any() else "")
-                hmax = 100
+                # print("k: ", kdist.min().item(), kdist.max().item(), "NAN" if (kdist != kdist).any() else "")
+                hmax = 75
                 self.debug.heatmap_video[:,i] = (torch.clamp(hits.float(), max = hmax)/hmax).detach().cpu().expand(-1, 3, -1,-1)
-                if self.debug.iter % 200: 
+                if self.debug.iter % 500 == 0 and i == self.nframes -2: 
                     print("hits: ", hits.min().item(), hits.max().item())
 
 
@@ -297,7 +310,7 @@ class LHCModel(DvdGanModel):
 
   
         #debug
-        netG = LHC(latent_dim=16, ngf=32,npf = 128,steps_per_frame = 1, pd = 2, knn = 0, sample_kernel = "exp", nframes=self.nframes, debug = self)
+        netG = LHC(latent_dim=16, ngf=32,npf = 256,steps_per_frame = 1, pd = 2, knn = 8, sample_kernel = "exp", nframes=self.nframes, debug = self)
         #real
         #netG = LHC(latent_dim=16, ngf=32,npf = 128,steps_per_frame = 1, pd = 2, knn = 0, sample_kernel = "exp", nframes=self.nframes)
 
