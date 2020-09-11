@@ -8,6 +8,27 @@ from data.base_dataset import BaseDataset
 import torch.nn.functional as F
 import torchvision.transforms as transforms
 from torchvideotransforms import video_transforms, volume_transforms
+
+import torch.hub
+
+def deeplab_inference(model, image, raw_image=None, postprocessor=None):
+    with torch.no_grad(): 
+        _, _, H, W = image.shape
+
+        # Image -> Probability map
+        logits = model(image)
+        logits = F.interpolate(logits, size=(H, W), mode="bilinear", align_corners=False)
+        probs = F.softmax(logits, dim=1)[0]
+        #probs = probs.cpu().numpy()
+
+        # Refine the prob map with CRF
+        if postprocessor and raw_image is not None:
+            probs = postprocessor(raw_image, probs.cpu().numpy())
+            probs = torch.from_numpy(probs)
+        labelmap = torch.argmax(probs, axis=0)
+
+    return logits, probs, labelmap
+
 #expected header in info.csv: video_id,file_name,resolution,fps,start,end
 class VideoDataset(BaseDataset): 
 
@@ -30,16 +51,20 @@ class VideoDataset(BaseDataset):
         self.nframes = int(opt.fps * opt.max_clip_length // opt.skip_frames)
         self.resolution = opt.resolution
         print(f"nframes: {self.nframes}")
-        self.augmentation = transforms.Compose([
-          #  torchvision.transforms.ColorJitter(brightness=.1, contrast=.1, saturation=.1, hue=.1),
-           # video_transforms.RandomCrop((self.resolution,self.resolution)),
-            video_transforms.RandomHorizontalFlip(),
-            volume_transforms.ClipToTensor(),
-        ])
-
+        if opt.phase == "train": 
+            self.augmentation = transforms.Compose([
+            #  torchvision.transforms.ColorJitter(brightness=.1, contrast=.1, saturation=.1, hue=.1),
+            # video_transforms.RandomCrop((self.resolution,self.resolution)),
+                video_transforms.RandomHorizontalFlip(),
+                volume_transforms.ClipToTensor(),
+            ])
+        else: 
+            self.augmentation = None
         self.use_segmentation = opt.use_segmentation
-        if opt.use_segmentation: 
-            pass
+        if self.use_segmentation: 
+            self.deeplab = torch.hub.load("kazuto1011/deeplab-pytorch", "deeplabv2_resnet101", pretrained='cocostuff164k', n_classes=182).cpu()
+            self.deeplab.eval()
+
 
     def __len__(self): 
         return self.len
@@ -68,8 +93,9 @@ class VideoDataset(BaseDataset):
             frames = self.augmentation(frames.numpy()).permute(1,2,3,0) *255
         out = {'VIDEO':frames}
         if self.use_segmentation: 
-           # out['SEGMENTATION'] = 
-            pass
+            first_frame = frames[0].permute(2,0,1).unsqueeze(0)
+            logits, probs, labelmap = deeplab_inference(self.deeplab, first_frame)
+            out['SEGMENTATION'] = probs
 
         return out
 

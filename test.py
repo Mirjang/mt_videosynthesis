@@ -40,6 +40,7 @@ if __name__ == '__main__':
     dataset_size = len(data_loader)
     print('#test images = %d' % dataset_size)
 
+
     print('>>> create model <<<')
     model = create_model(opt)
     print('>>> setup model <<<')
@@ -78,17 +79,18 @@ if __name__ == '__main__':
         if i > warm_up:  # give torch some time to warm up
             sum_time += ((b-a) * 1000)
 
-        vids = model.predicted_video 
-        out_buffer.append([*torch.split(vids, 1, dim=0)])
+        vids = model.predicted_video.detach().cpu()
+        out_buffer.append(*torch.split(vids, 1, dim=0))
 
        #visuals = model.get_current_visuals()
        # img_path = model.get_image_paths()
         if i % 10 == 0:
             print(opt.name + ":")
             print('processing (%04d)-th sample...' % (i))
-            
+        
       #  save_images(webpage, visuals, img_path, aspect_ratio=opt.aspect_ratio, width=opt.display_winsize)
         if len(out_buffer) >= opt.grid**2: 
+            
 
             grid = out_buffer[:opt.grid**2]
             out_buffer = out_buffer[opt.grid**2: ]
@@ -96,15 +98,13 @@ if __name__ == '__main__':
             for x in range(opt.grid): 
                 a = x*opt.grid
                 b = a + opt.grid
-                row = torch.cat(out_buffer[a:b], dim = -2)
+                row = torch.cat(grid[a:b], dim = -2)
                 rows.append(row)
 
-            out = torch.cat(rows, dim = -1)
+            out = torch.cat(rows, dim = -1).squeeze(0).permute(0,2,3,1) * 255 # T,W,H,C
             torchvision.io.write_video(os.path.join(web_dir, f"fake_block{block}.mp4"), out, opt.fps / 2)
             block += 1
 
     print('mean eval time: ', (sum_time / (total_runs - warm_up)))
-    if video: 
-        video_output.close()
     # save the website
     print("DONE: " + opt.name)

@@ -10,7 +10,7 @@ from .Normalization import ConditionalNorm, SpectralNorm
 class GResBlock(nn.Module):
 
     def __init__(self, in_channel, out_channel, kernel_size=None,
-                 padding=1, stride=1, n_class=0, bn=True,
+                 padding=1, stride=1, n_class=0, bn=True, norm = nn.BatchNorm2d, 
                  activation=F.relu, upsample_factor=2, downsample_factor=1, weight_norm = SpectralNorm):
         super().__init__()
    
@@ -45,8 +45,8 @@ class GResBlock(nn.Module):
                 self.CBNorm1 = ConditionalNorm(in_channel, n_class) # TODO 2 x noise.size[1]
                 self.CBNorm2 = ConditionalNorm(out_channel, n_class)
             else: 
-                self.CBNorm1 = nn.BatchNorm2d(in_channel)
-                self.CBNorm2 = nn.BatchNorm2d(out_channel)
+                self.CBNorm1 = norm(in_channel)
+                self.CBNorm2 = norm(out_channel)
 
     def forward(self, x, condition=None):
 
