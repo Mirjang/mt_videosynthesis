@@ -60,9 +60,10 @@ class BaseOptions():
 
         parser.add_argument('--generator', type=str, default="dvdgansimple", help='generator type: dvdgansimple|dvdgan|trajgru|lhc')
         parser.add_argument('--parallell_batch_size', type=int, default=None, help='number of samples processed in parallell, must be <= batch_size')
-        parser.add_argument('--use_segmentation', action='store_true', help='Use DeepLab V3 (VOC) precomputed semantic segmentation as additional input')
+        parser.add_argument('--use_segmentation', action='store_true', help='Use DeepLab V3 (cocostuff) precomputed semantic segmentation as additional input')
         parser.add_argument('--num_segmentation_classes',  type=int, default=182, help='number of classes if sem seg is used')
 
+        parser.add_argument('--no_augmentation', action='store_true', help='disable augmentation')
 
         self.initialized = True
         return parser

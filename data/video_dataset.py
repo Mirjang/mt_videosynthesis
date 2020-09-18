@@ -51,7 +51,7 @@ class VideoDataset(BaseDataset):
         self.nframes = int(opt.fps * opt.max_clip_length // opt.skip_frames)
         self.resolution = opt.resolution
         print(f"nframes: {self.nframes}")
-        if opt.phase == "train": 
+        if opt.phase == "train" and not opt.no_augmentation: 
             self.augmentation = transforms.Compose([
             #  torchvision.transforms.ColorJitter(brightness=.1, contrast=.1, saturation=.1, hue=.1),
             # video_transforms.RandomCrop((self.resolution,self.resolution)),
@@ -62,14 +62,24 @@ class VideoDataset(BaseDataset):
             self.augmentation = None
         self.use_segmentation = opt.use_segmentation
         if self.use_segmentation: 
+            import warnings
+            warnings.filterwarnings("ignore", category=UserWarning) 
             self.deeplab = torch.hub.load("kazuto1011/deeplab-pytorch", "deeplabv2_resnet101", pretrained='cocostuff164k', n_classes=182).cpu()
             self.deeplab.eval()
+            with open("./data/cocostuff_labels_dynamic.txt") as f: 
+                #self.dynamic_indices = torch.tensor([int(x.split(':')[0]) for x in f.read().split('\n')])
+                self.dynamic_dict = {int(x.split(':')[0]): x.split(':')[1] for x in f.read().split('\n')}
+                self.dynamic_indices = self.dynamic_dict.keys()
+              
+            with open("./data/cocostuff_labels.txt") as f: 
+                self.label_dict = {int(x.split(':')[0]): x.split(':')[1] for x in f.read().split('\n')}
 
 
     def __len__(self): 
         return self.len
 
     def __getitem__(self, index):
+        out = {}
         clip = self.df.iloc[index]
         start = random.uniform(clip['start'], clip['end'] - self.max_clip_length)
         end = min(start + self.max_clip_length, clip['end'])
@@ -86,17 +96,22 @@ class VideoDataset(BaseDataset):
             for i in range(T//self.skip_frames):
                 skipped[i] = frames[i*self.skip_frames]
             frames = skipped
+        first_frame = frames[0]
         frames = frames[:self.nframes,...].float()
         frames = F.interpolate(frames.permute(0,3,1,2), size = (self.resolution, self.resolution), mode = "bilinear", align_corners=False).permute(0,2,3,1)
 
         if self.augmentation: 
             frames = self.augmentation(frames.numpy()).permute(1,2,3,0) *255
-        out = {'VIDEO':frames}
+        out['VIDEO'] = frames
         if self.use_segmentation: 
             first_frame = frames[0].permute(2,0,1).unsqueeze(0)
             logits, probs, labelmap = deeplab_inference(self.deeplab, first_frame)
-            out['SEGMENTATION'] = probs
-
+            staticmap = torch.zeros_like(labelmap)
+            for i in self.dynamic_indices: 
+                staticmap[labelmap==i] = 1
+            out['SEGMENTATION'] = staticmap.unsqueeze(0)
+            print(f"found: {[(x, self.label_dict[x]) for x in torch.unique(labelmap).tolist()]}")
+            #out['SEGMENTATION'] = probs
         return out
 
 

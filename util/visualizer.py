@@ -114,6 +114,7 @@ class Visualizer():
                 h,w = width, width
                 for label, image in visuals.items(): 
                     if not (label.endswith("_video") or label.endswith("_plt")):
+                        # print(label, image.shape)
                         h, w = image.shape[2:4]
                 height = int(width * h / float(w))
                 h = height

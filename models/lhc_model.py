@@ -25,39 +25,10 @@ from .dvdgansimple_model import GRUEncoderDecoderNet
 import models.kernels as kernels
 #import torch.nn.utils.spectral_norm as SpectralNorm
 
-def GGDown(ch, bn = False, weight_norm = SpectralNorm): 
-    return [GResBlock(ch, ch, kernel_size=(3,3), downsample_factor=1, upsample_factor=1, bn=bn, weight_norm=weight_norm),
-    nn.ReLU(), 
-    GResBlock(ch, ch*2, kernel_size=(3,3), downsample_factor=2, bn=bn, weight_norm=weight_norm),
-    nn.ReLU()]
-
-def GGUp(ch, bn = False, weight_norm = SpectralNorm): 
-    return [GResBlock(ch, ch, kernel_size=(3,3), downsample_factor=1, upsample_factor=1, bn=bn, weight_norm=weight_norm),
-    nn.ReLU(), 
-    GResBlock(ch, ch//2, kernel_size=(3,3), upsample_factor=2, bn=bn, weight_norm=weight_norm),
-    nn.ReLU()]
-
-# def GGDown(ch, bn = False, weight_norm = SpectralNorm): 
-#     return [
-#     nn.Conv2d(ch, ch*2, kernel_size=(3,3), stride = 1, padding = 1),
-#     nn.ReLU(),
-#     nn.AvgPool2d(2,2),
-#     ] 
-
-# def GGUp(ch, bn = False, weight_norm = SpectralNorm): 
-#     return [
-#     nn.Conv2d(ch, ch//2, kernel_size=(3,3), stride = 1, padding = 1),
-#     nn.ReLU(),
-#     nn.Upsample(scale_factor=2),
-#     ] 
-def conv_relu(in_dims, out_dims, stride = 1, weight_norm = SpectralNorm):
-    layer = [weight_norm(nn.Conv2d(in_dims, out_dims, kernel_size=3, bias=True, padding=1, stride=stride, padding_mode="reflect"))]
-    layer += [nn.ReLU()]
-    return layer
 
 class LHC(nn.Module):
 
-    def __init__(self, latent_dim=32, ngf=32,npf = 32,steps_per_frame = 1, pd = 2, knn = 8, sample_kernel = "exp", nframes=48, debug= None, weight_norm = None):
+    def __init__(self,input_nc, latent_dim=32, ngf=32,npf = 32,steps_per_frame = 1, pd = 2, knn = 8, sample_kernel = "exp", nframes=48, debug= None, bn = True, weight_norm = SpectralNorm):
         super().__init__()
         self.debug = debug
         self.latent_dim = latent_dim
@@ -65,56 +36,101 @@ class LHC(nn.Module):
         self.knn = knn
         self.steps_per_frame = steps_per_frame
         self.truncation_dist = .8
+        self.kernel_sigma = .2
+
         if weight_norm is None:
             weight_norm = lambda x: x
 
-        encoder =[
-            *conv_relu(3,ngf),
-            *GGDown(ngf), #-> ngf*2
+        def GGDown(ch, bn = bn, weight_norm = weight_norm): 
+            return [GResBlock(ch, ch, kernel_size=(3,3), downsample_factor=1, upsample_factor=1, bn=bn, weight_norm=weight_norm),
             nn.ReLU(), 
-            *GGDown(ngf*2),  #-> ngf*4
-            *conv_relu(ngf*4,npf),
-        ]
-        self.encoder = nn.Sequential(*encoder)
+            GResBlock(ch, ch*2, kernel_size=(3,3), downsample_factor=2, bn=bn, weight_norm=weight_norm),
+            nn.ReLU()]
 
-        rule_mlp = [
+        def GGUp(ch, bn = bn, weight_norm = weight_norm): 
+            return [GResBlock(ch, ch, kernel_size=(3,3), downsample_factor=1, upsample_factor=1, bn=bn, weight_norm=weight_norm),
+            nn.ReLU(), 
+            GResBlock(ch, ch//2, kernel_size=(3,3), upsample_factor=2, bn=bn, weight_norm=weight_norm),
+            nn.ReLU()]
+
+        def conv_relu(in_dims, out_dims, stride = 1, kernel_size = 3, weight_norm = SpectralNorm):
+            
+            layer = [weight_norm(nn.Conv2d(in_dims, out_dims, kernel_size=kernel_size, bias=True, padding=kernel_size//2, stride=stride, padding_mode="reflect"))]
+            layer += [nn.ReLU()]
+            return layer
+
+        # def GGDown(ch, bn = bn, weight_norm = weight_norm): 
+        #     return [
+        #     nn.Conv2d(ch, ch*2, kernel_size=(3,3), stride = 1, padding = 1),
+        #     nn.ReLU(),
+        #     nn.AvgPool2d(2,2),
+        #     ] 
+
+        # def GGUp(ch, bn = bn, weight_norm = weight_norm): 
+        #     return [
+        #     nn.Conv2d(ch, ch//2, kernel_size=(3,3), stride = 1, padding = 1),
+        #     nn.ReLU(),
+        #     nn.Upsample(scale_factor=2),
+        #     ] 
+
+        self.encoder = nn.Sequential(
+            *conv_relu(input_nc,ngf),
+            *GGDown(ngf), #-> ngf*2
+         #   *GGDown(ngf*2),  #-> ngf*4
+            *conv_relu(ngf*2,npf)
+            )
+
+        self.rule_mlp = nn.Sequential(
             weight_norm(nn.Conv1d(npf, npf//2, kernel_size=1, bias=True)),
             nn.ReLU(),
             weight_norm(nn.Conv1d(npf//2, npf, kernel_size=1, bias=True)),
-            nn.ReLU(),
-        ]
-        self.rule_mlp = nn.Sequential(*rule_mlp)
+            nn.ReLU()
+            )
 
-        velocity_mlp = [
+        if knn > 1: 
+     
+            # self.update_mlp = nn.Sequential(
+            #       weight_norm(nn.Conv1d(npf*2, npf, kernel_size=1, bias=True)),
+            #     nn.ReLU(),
+            #     weight_norm(nn.Conv1d(npf, npf, kernel_size=1, bias=True)),
+            #     nn.ReLU(),)
+
+            self.update_gru = ConvGRU(npf, npf, 1, 1)
+
+        self.velocity_mlp = nn.Sequential(
             weight_norm(nn.Conv1d(npf, npf//2, kernel_size=1, bias=True)),
             nn.ReLU(),
             weight_norm(nn.Conv1d(npf//2, 2, kernel_size=1, bias=True)),
             nn.Tanh()
-        ]
-        self.velocity_mlp = nn.Sequential(*velocity_mlp)
+            )
 
-        self.distance_kernel = kernels.TruncatedExponentialKernel(sigma = .5, truncation_dist = self.truncation_dist)
+        self.distance_kernel = kernels.TruncatedExponentialKernel(sigma = self.kernel_sigma, truncation_dist = self.truncation_dist)
         #self.distance_kernel = kernels.LinearKernel()
         #self.distance_kernel = kernels.ExponentialKernel(sigma = 1)
-
-        decoder = [
-            nn.Upsample(scale_factor=2),
-            *conv_relu(npf,ngf*2),
-          #  GGUp(ngf*4), #-> ngf*2
-          #  nn.ReLU(), 
-            *GGUp(ngf*2),  #-> ngf
+      
+        self.decoder = nn.Sequential(  
+            #   nn.Upsample(scale_factor=2),
+            *conv_relu(npf,ngf*2, kernel_size = 1),
             nn.ReLU(), 
+          #  *GGUp(ngf*4), #-> ngf*2
+            *GGUp(ngf*2),  #-> ngf
             nn.Conv2d(ngf, 3, kernel_size=3, bias=True, padding=1, stride=1, padding_mode="reflect"),
-        ]
-        self.decoder = nn.Sequential(*decoder)
-
-        # self.encoder = nn.Sequential(*conv_relu(3,4))
-        # self.decoder = nn.Sequential(*conv_relu(4,3))
+            )
 
         self.it = 0
 
         if self.debug: 
             self.debug.visual_names.insert(0,"heatmap_video")
+
+            # self.encoder = nn.Sequential(*conv_relu(3,npf, kernel_size = 3), 
+            #     nn.AvgPool2d(2,2),
+            #     nn.AvgPool2d(2,2),
+            #     )
+            # self.decoder = nn.Sequential(
+            #     nn.Upsample(scale_factor=2),        
+            #     nn.Upsample(scale_factor=2),
+            #     nn.Conv2d(npf, 3, kernel_size=3, bias=True, padding=1, stride=1, padding_mode="reflect"),
+            #     )
 
     def uniform_grid(self,B,W,H, device = None):
         step_h = 2./(H-1)
@@ -138,13 +154,20 @@ class LHC(nn.Module):
         dist = torch.pow(x - y, 2).sum(3) 
         return dist
 
-    def forward(self, x):
+    def forward(self, x, return_loss = False):
        # torch.autograd.set_detect_anomaly(True)
         x = x * 2 - 1
+        seg = None
+
         if len(x.shape) == 5: # B x T x 3 x W x H -> B x 3 x W x H (first frame - other methods might use more frames -- esp for easier training)
             x = x[:,0,...]
-        first_frame = x.unsqueeze(1)
+        
+        first_frame = x.unsqueeze(1)[:,:,:3,...]
 
+        if x.size(1) > 3: 
+            seg_in = x[:,3:,...]
+            seg = F.interpolate(seg_in, size=(self.latent_dim, self.latent_dim)).view(x.size(0), 1, -1).expand(-1,2,-1)#Bx2xP
+        
         x = self.encoder(x)
         B, C, W, H = x.shape
         y = torch.zeros((B,self.nframes,C,W,H), device = x.device)
@@ -154,12 +177,12 @@ class LHC(nn.Module):
         x_part = x.view(B, C, num_particles)
         ref_pos = self.uniform_grid(B,W,H,device=x.device) #B,2,W,H
         pos = self.uniform_grid(B,W,H,device=x.device).view(B,2, -1) #B,2,W*H
-
      #   y = torch.zeros((B,self.nframes,3,64,64), device = x.device)
+        laux = 0
  
         if self.debug: 
             self.debug.heatmap_video = torch.zeros((B,self.nframes,3,W,H))
-            
+        
         for i in range(self.nframes):
         #    print(f"----------------{i}-----------")
         #    print("x: ", x_part.min().item(), x_part.max().item())#, v.min().item(), v.max().item())
@@ -168,23 +191,32 @@ class LHC(nn.Module):
 
             for _ in range(self.steps_per_frame):
                 # update based on neighbors
-                # if self.knn > 1:
-                #     d = (pos[...,None]@pos[...,None,:]).sum(dim=1)#outer product
-                    d = self.pairwise_distances(pos,pos)
-                    _, knn_ind = torch.topk(d, self.knn, dim = 1, largest=False, sorted=False)
-                    x_neigh = 1/self.knn * x_part[knn_ind].sum(dim = 1)
+                if self.knn > 1:
+                    # d = (pos[...,None]@pos[...,None,:]).sum(dim=1)#outer product
+                    pos_t = pos.permute(0,2,1) #B,WxH,2
+                    d = self.pairwise_distances(pos_t,pos_t) #B,WxH,WxH
+#                    print(pos.shape, d.shape)
+                    dk, knn_ind = torch.topk(d, self.knn, dim = 1, largest=False, sorted=False)#BxkxP
+                    knn_ind = knn_ind.view(B, -1).unsqueeze(1).expand(-1, C, -1) #PxCxk*P
+                    nmat = torch.gather(x_part, 2, knn_ind).view(B,C,-1, num_particles)
+                    # print(dk.shape, nmat.shape)
+                   # kdk = torch.exp(-1*dk)
+                    kdk = 1/ (dk + 1e-8)
+                    nmat = nmat * kdk.unsqueeze(1)
+                    x_neigh = 1/self.knn * nmat.sum(dim = 2)
+                    x_part = self.update_gru(x_neigh.unsqueeze(-1), x_part.unsqueeze(-1)).squeeze(-1)
 
                 # update latent info and compute velocity
-                x_part = self.rule_mlp(x_part)
-                v = self.velocity_mlp(x_part)        
-                #x_part, v = xv.split([C, 2], dim = 1)# B,C+2,WxH --> B,C,WxH; B,2,WxH
+                x_part = x_part + self.rule_mlp(x_part)
+                v = self.velocity_mlp(x_part) / self.latent_dim   
 
+                if seg is not None: 
+                    v = v*seg 
                 #integrate position
                 pos = pos + v #.clamp(-1e-2,1e-2)
                 pass
 
-
-            pos = pos.clamp(-1.1,1.1) #keep stuff from going super bad while still allowing particles to go out of frame
+            pos = pos.clamp(-1.5,1.5) #keep stuff from going super bad while still allowing particles to go out of frame
             #sample frame
             #distance between the reference pos (element in matrix) and actual pos of the particle
             #this is just kindof a hack so we can use std pytorch to simulate our particles
@@ -199,45 +231,69 @@ class LHC(nn.Module):
             hits = torch.sum(kdist > self.truncation_dist, dim = 2).detach()
             hits[hits == 0] = 1 #otherwise we´d have 0/0
             sample = sample / hits.float()
-            #sample = x
+           # sample = x
             y[:,i] = sample
+
+            laux += torch.relu(pos**2 -1).mean() / self.nframes
+            if seg is not None: 
+                laux += (v*(1-seg)).mean() / self.nframes #static areas should have 0 velocity
+            else: 
+                laux += torch.relu(v**2 -0.2).mean() / self.nframes
 
             if self.debug: 
                 pass
 
-                #print("x: ", x_part.min().item(), x_part.max().item())
-                # print("v: ", v.min().item(), v.max().item())
-                # print("p: ", pos.min().item(), pos.max().item())
-                # print("r: ", ref_pos.min().item(), ref_pos.max().item())
-                # print("d: ", dist.min().item(), dist.max().item(), "NAN" if (dist != dist).any() else "")
-                # print("k: ", kdist.min().item(), kdist.max().item(), "NAN" if (kdist != kdist).any() else "")
                 hmax = 75
                 self.debug.heatmap_video[:,i] = (torch.clamp(hits.float(), max = hmax)/hmax).detach().cpu().expand(-1, 3, -1,-1)
                 if self.debug.iter % 500 == 0 and i == self.nframes -2: 
-                    print("hits: ", hits.min().item(), hits.max().item())
+                    print("hits: ", hits.min().item(), hits.max().item(), hits.float().mean().item())
 
+                if self.debug.opt.verbose:
 
-                # for ii in range(4): 
-                #     debframe = [0, num_particles//2,num_particles//2+1, W*H -1][ii]
-                #     setattr(self.debug,f"heatmap_{ii + 4*i}", (kdist[:,:,debframe,...].detach().cpu()))
-                # if i <5: 
-                #     smin,smax = sample.min(), sample.max()
-                #     setattr(self.debug,f"heatmap_{2*i}", ((sample[:,:3,...] -smin) / (smax-smin)).detach().cpu())
+                    # print("x: ", x_part.min().item(), x_part.max().item())
+                    # print("v: ", v.min().item(), v.max().item())
+                    # print("p: ", pos.min().item(), pos.max().item())
+                    # # print("r: ", ref_pos.min().item(), ref_pos.max().item())
+                    # print("d: ", dist.min().item(), dist.max().item(), "NAN" if (dist != dist).any() else "")
+                    # print("k: ", kdist.min().item(), kdist.max().item(), "NAN" if (kdist != kdist).any() else "")
 
-                #     dsample = torch.tanh(self.decoder(sample))
-                #     dsmin,dsmax = dsample.min(), dsample.max()
-                #     setattr(self.debug,f"heatmap_{2*i +1}", ((dsample[:,:3,...] -dsmin) / (dsmax-dsmin)).detach().cpu())
-                #     # if i == 0: 
-                #     #     print("y: ",dsmin.item(), dsmax.item())
+                    # for ii in range(4): 
+                    #     debframe = [0, num_particles//2,num_particles//2+1, W*H -1][ii]
+                    #     setattr(self.debug,f"heatmap_{ii + 4*i}", (kdist[:,:,debframe,...].detach().cpu()))
+                    
+                    v_vis = (torch.cat([v, torch.zeros_like(v)[:,:1,...]], dim = 1).view(B, 3, self.latent_dim, self.latent_dim) +1) / 2
+                    setattr(self.debug,f"heatmap_{i + 2*8}", (v_vis - v.min() / v.max()).detach().cpu())
+                    if i <8: 
+                        smin,smax = sample.min(), sample.max()
+                        setattr(self.debug,f"heatmap_{2*i}", ((sample[:,:3,...] -smin) / (smax-smin)).detach().cpu())
+
+                        dsample = torch.tanh(self.decoder(sample))
+                        dsmin,dsmax = dsample.min(), dsample.max()
+                        setattr(self.debug,f"heatmap_{2*i +1}", ((dsample[:,:3,...] -dsmin) / (dsmax-dsmin)).detach().cpu())
+                     #   print("y: ",dsmin.item(), dsmax.item())
+                        if seg is not None: 
+                            setattr(self.debug,f"heatmap_{0}", seg_in.detach().cpu().expand(-1,3,-1,-1))
+                    
+                    # print(getattr(self.debug, f"heatmap_{0}").shape)
+                    # print(getattr(self.debug, f"heatmap_{1}").shape)
 
         y = y.view(-1, C, W, H)
         y = torch.tanh(self.decoder(y))
         *_, W, H = first_frame.shape
         y = y.view(B, self.nframes, 3, W, H) # B, T/S, C*S, W, H
-        y = torch.cat([first_frame, y], dim = 1)
 
-        y = (y+1) / 2.0 #[-1,1] -> [0,1] for vis
-        return y
+        # y = torch.tanh(self.decoder(self.encoder(first_frame.squeeze(1)))).unsqueeze(1).expand(-1, self.nframes, -1, -1,-1)
+        # print("WTFS", y.min().item(), y.max().item(), y.mean().item())
+
+        y = torch.cat([first_frame, y], dim = 1)
+        y = (y+1.0) / 2.0 #[-1,1] -> [0,1] for vis
+
+
+
+        if return_loss: 
+            return y, laux
+        else: 
+            return y
 
 from .dvdgan_model import DvdGanModel
 class LHCModel(DvdGanModel):
@@ -250,8 +306,9 @@ class LHCModel(DvdGanModel):
             parser.set_defaults(pool_size=0, no_lsgan=True)
             parser.add_argument('--lambda_S', type=float, default=.1, help='weight for spatial loss')
             parser.add_argument('--lambda_T', type=float, default=.1, help='weight for temporal loss')
-            parser.add_argument('--lambda_L1', type=float, default=10.0, help='weight for pretrain L1 loss')
+            parser.add_argument('--lambda_L1', type=float, default=1.0, help='weight for pretrain L1 loss')
             parser.add_argument('--lambda_GP', type=float, default=1, help='gradient penalty')
+            parser.add_argument('--lambda_reg', type=float, default=1, help='regularizer')
 
         return parser
 
@@ -283,12 +340,15 @@ class LHCModel(DvdGanModel):
         for i in range(self.num_display_frames):
             self.visual_names += [f"frame_{i}"]
 
-        # self.num_heatmaps = self.nframes * 4 -4
-        # for i in range(self.num_heatmaps):
-        #     self.visual_names += [f"heatmap_{i}"]
+        if opt.verbose: 
+            self.num_heatmaps = self.nframes * 4 -4
+            for i in range(self.num_heatmaps):
+                self.visual_names += [f"heatmap_{i}"]
+                setattr(self,f"heatmap_{i}", torch.zeros((1,3,64,64)))
+
 
         # specify the training losses you want to print out. The program will call base_model.get_current_losses
-        self.loss_names = ['Gs', 'Gt', 'Ds', 'Dt']
+        self.loss_names = ['Gs', 'Gt', 'Gaux', 'Ds', 'Dt']
         if opt.pretrain_epochs > 0:
             self.loss_names.append('G_L1')
         # specify the models you want to save to the disk. The program will call base_model.save_networks and base_model.load_networks
@@ -308,11 +368,12 @@ class LHCModel(DvdGanModel):
         else: 
             self.loss_names += ['Ds_real', 'Ds_fake', 'Dt_real', 'Dt_fake', 'Ds_GP', 'Dt_GP']
 
-  
+        input_nc = opt.input_nc + (opt.num_segmentation_classes if opt.use_segmentation else 0)
+
         #debug
-        netG = LHC(latent_dim=16, ngf=32,npf = 256,steps_per_frame = 1, pd = 2, knn = 8, sample_kernel = "exp", nframes=self.nframes, debug = self)
+        netG = LHC(input_nc, latent_dim=32, ngf=16,npf = 128,steps_per_frame = 1, pd = 2, knn = 8, weight_norm = SpectralNorm, bn = False, sample_kernel = "exp", nframes=self.nframes, debug = self)
         #real
-        #netG = LHC(latent_dim=16, ngf=32,npf = 128,steps_per_frame = 1, pd = 2, knn = 0, sample_kernel = "exp", nframes=self.nframes)
+        #netG = LHC(input_nc, latent_dim=16, ngf=32,npf = 128,steps_per_frame = 1, pd = 2, knn = 8, sample_kernel = "exp", nframes=self.nframes)
 
         self.netG = networks.init_net(netG, opt.init_type, opt.init_gain, self.gpu_ids)
         
@@ -334,7 +395,7 @@ class LHCModel(DvdGanModel):
 
             # initialize optimizers
             self.optimizers = []
-            #self.optimizer_G = torch.optim.SGD(self.netG.parameters(), opt.lr)
+            #self.optimizer_G = torch.optim.SGD(self.netG.parameters(), .3)
             self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizers.append(self.optimizer_G)
 
@@ -358,7 +419,33 @@ class LHCModel(DvdGanModel):
         self.loss_Dt_real = 0
         self.loss_Ds_GP = 0
         self.loss_Dt_GP = 0
+        self.loss_Gaux = 0
 
+
+    def forward(self, frame_length = -1, train = True):
+
+        if hasattr(self.netG, "nFrames"):
+            self.netG.nFrames = frame_length if frame_length>0 else self.nframes
+ 
+        self.predicted_video, loss_Gaux = self.netG(self.input, return_loss = True)
+        self.loss_Gaux = self.opt.lambda_reg * loss_Gaux.mean()
+        
+        if self.target_video.size(1) >= self.nframes: 
+            self.prediction_target_video = torch.cat([self.predicted_video[:, :self.nframes,...].detach().cpu(), self.target_video.detach().cpu()], dim = 4)
+        else: 
+            self.prediction_target_video = self.predicted_video[:, :self.nframes,...].detach().cpu()
+
+
+        for i in range(self.num_display_frames//2):
+            setattr(self,f"frame_{i}", self.predicted_video[:,i,...].detach().cpu() )
+        for i in range(self.num_display_frames//2):
+            ith_last = self.num_display_frames//2 -i +1
+            setattr(self,f"frame_{i + self.num_display_frames//2}", self.predicted_video[:,-ith_last,...].detach().cpu() )
+
+    def backward_G_wgan(self, epoch, train_threshold = 0):        
+        b = DvdGanModel.backward_G_wgan(self, epoch, train_threshold = 0)
+        self.loss_G += self.loss_Gaux
+        return b
     # def optimize_parameters(self, epoch, verbose = False):
     #     self.optimizer_G.step()
     #     self.optimizer_G.zero_grad()
@@ -369,6 +456,7 @@ class LHCModel(DvdGanModel):
     #     B, TT,*_ = self.target_video.shape
 
     #     self.forward(frame_length=Te)
-    #     self.loss_G_L1 =self.criterionL1(self.predicted_video[:,1], self.target_video[:,1]) * self.opt.lambda_L1
+
+    #     self.loss_G_L1 =self.criterionL1(self.predicted_video[:,1:], self.target_video[:,1:]) * self.opt.lambda_L1
     #     self.loss_G_L1.backward()
     #     #diagnose_network(self.netG,"G")
