@@ -101,7 +101,7 @@ if __name__ == '__main__':
             model.set_input(data)
             model.compute_losses(epoch, verbose = verbose)
 
-            if (i+1) % n_acc_batches == 0: # accumulate gradients for less noisy updates
+            if (i+1) % n_acc_batches == 0 or n_acc_batches == 0 : # accumulate gradients for less noisy updates
                 model.optimize_parameters(epoch, verbose = verbose)
 
             ################## end training code ##################

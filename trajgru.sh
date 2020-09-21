@@ -40,6 +40,8 @@ FPS=25
 GENERATOR=trajgru
 
 NAME=${DATASET}_${MODEL}_${GENERATOR}_${RESOLUTION}_debug
+git add -A 
+git commit -m $NAME
 DISPNAME=${NAME}
 # vid settings
 SKIP=1

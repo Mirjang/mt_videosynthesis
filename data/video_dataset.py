@@ -10,6 +10,78 @@ import torchvision.transforms as transforms
 from torchvideotransforms import video_transforms, volume_transforms
 
 import torch.hub
+import math
+import numbers
+import torch
+from torch import nn
+from torch.nn import functional as F
+
+#https://discuss.pytorch.org/t/is-there-anyway-to-do-gaussian-filtering-for-an-image-2d-3d-in-pytorch/12351/7
+class GaussianSmoothing(nn.Module):
+    """
+    Apply gaussian smoothing on a
+    1d, 2d or 3d tensor. Filtering is performed seperately for each channel
+    in the input using a depthwise convolution.
+    Arguments:
+        channels (int, sequence): Number of channels of the input tensors. Output will
+            have this number of channels as well.
+        kernel_size (int, sequence): Size of the gaussian kernel.
+        sigma (float, sequence): Standard deviation of the gaussian kernel.
+        dim (int, optional): The number of dimensions of the data.
+            Default value is 2 (spatial).
+    """
+    def __init__(self, channels, kernel_size, sigma, dim=2):
+        super(GaussianSmoothing, self).__init__()
+        if isinstance(kernel_size, numbers.Number):
+            kernel_size = [kernel_size] * dim
+        if isinstance(sigma, numbers.Number):
+            sigma = [sigma] * dim
+
+        # The gaussian kernel is the product of the
+        # gaussian function of each dimension.
+        kernel = 1
+        meshgrids = torch.meshgrid(
+            [
+                torch.arange(size, dtype=torch.float32)
+                for size in kernel_size
+            ]
+        )
+        for size, std, mgrid in zip(kernel_size, sigma, meshgrids):
+            mean = (size - 1) / 2
+            kernel *= 1 / (std * math.sqrt(2 * math.pi)) * \
+                      torch.exp(-((mgrid - mean) / (2 * std)) ** 2)
+
+        # Make sure sum of values in gaussian kernel equals 1.
+        kernel = kernel / torch.sum(kernel)
+
+        # Reshape to depthwise convolutional weight
+        kernel = kernel.view(1, 1, *kernel.size())
+        kernel = kernel.repeat(channels, *[1] * (kernel.dim() - 1))
+
+        self.register_buffer('weight', kernel)
+        self.groups = channels
+
+        if dim == 1:
+            self.conv = F.conv1d
+        elif dim == 2:
+            self.conv = F.conv2d
+        elif dim == 3:
+            self.conv = F.conv3d
+        else:
+            raise RuntimeError(
+                'Only 1, 2 and 3 dimensions are supported. Received {}.'.format(dim)
+            )
+
+    def forward(self, input):
+        """
+        Apply gaussian filter to input.
+        Arguments:
+            input (torch.Tensor): Input to apply gaussian filter on.
+        Returns:
+            filtered (torch.Tensor): Filtered output.
+        """
+        input = F.pad(input, (2, 2, 2, 2), mode='reflect')
+        return self.conv(input, weight=self.weight, groups=self.groups)
 
 def deeplab_inference(model, image, raw_image=None, postprocessor=None):
     with torch.no_grad(): 
@@ -27,7 +99,26 @@ def deeplab_inference(model, image, raw_image=None, postprocessor=None):
             probs = torch.from_numpy(probs)
         labelmap = torch.argmax(probs, axis=0)
 
-    return logits, probs, labelmap
+    return logits, probs, labelmap  
+
+def motion_segmentation(x, eps = 1e-3, channel_dim = -1, num_offsets = 3, offset_offsets = 3, smooth_kernel = 5, smooth_sigma = 1): 
+    assert len(x.shape) == 4
+    seg = 0
+    for o in range(1,num_offsets+1):
+        o = o * offset_offsets
+        td = x - torch.cat([x[:o,...], x[:-o]]) 
+        td = torch.abs(td)
+        td = torch.sum(td, dim = channel_dim, keepdim = True)
+        motion_seg = torch.sum(td, dim = 0) / x.size(0)
+        motion_seg = motion_seg > eps
+        seg = seg + motion_seg
+    seg = seg>0
+    if smooth_kernel>0: 
+        smoothing = GaussianSmoothing(1, smooth_kernel, smooth_sigma)
+        seg = smoothing(seg.permute(2,0,1).float().unsqueeze(0)).squeeze(0).permute(1,2,0)
+        seg = seg > 1./smooth_kernel
+    return seg.long()
+
 
 #expected header in info.csv: video_id,file_name,resolution,fps,start,end
 class VideoDataset(BaseDataset): 
@@ -61,18 +152,19 @@ class VideoDataset(BaseDataset):
         else: 
             self.augmentation = None
         self.use_segmentation = opt.use_segmentation
-        if self.use_segmentation: 
-            import warnings
-            warnings.filterwarnings("ignore", category=UserWarning) 
-            self.deeplab = torch.hub.load("kazuto1011/deeplab-pytorch", "deeplabv2_resnet101", pretrained='cocostuff164k', n_classes=182).cpu()
-            self.deeplab.eval()
-            with open("./data/cocostuff_labels_dynamic.txt") as f: 
-                #self.dynamic_indices = torch.tensor([int(x.split(':')[0]) for x in f.read().split('\n')])
-                self.dynamic_dict = {int(x.split(':')[0]): x.split(':')[1] for x in f.read().split('\n')}
-                self.dynamic_indices = self.dynamic_dict.keys()
+        self.seg_eps = opt.motion_seg_eps
+        # if self.use_segmentation: 
+        #     import warnings
+        #     warnings.filterwarnings("ignore", category=UserWarning) 
+        #     self.deeplab = torch.hub.load("kazuto1011/deeplab-pytorch", "deeplabv2_resnet101", pretrained='cocostuff164k', n_classes=182).cpu()
+        #     self.deeplab.eval()
+        #     with open("./data/cocostuff_labels_dynamic.txt") as f: 
+        #         #self.dynamic_indices = torch.tensor([int(x.split(':')[0]) for x in f.read().split('\n')])
+        #         self.dynamic_dict = {int(x.split(':')[0]): x.split(':')[1] for x in f.read().split('\n')}
+        #         self.dynamic_indices = self.dynamic_dict.keys()
               
-            with open("./data/cocostuff_labels.txt") as f: 
-                self.label_dict = {int(x.split(':')[0]): x.split(':')[1] for x in f.read().split('\n')}
+        #     with open("./data/cocostuff_labels.txt") as f: 
+        #         self.label_dict = {int(x.split(':')[0]): x.split(':')[1] for x in f.read().split('\n')}
 
 
     def __len__(self): 
@@ -103,15 +195,17 @@ class VideoDataset(BaseDataset):
         if self.augmentation: 
             frames = self.augmentation(frames.numpy()).permute(1,2,3,0) *255
         out['VIDEO'] = frames
+        # if self.use_segmentation: 
+        #     first_frame = frames[0].permute(2,0,1).unsqueeze(0)
+        #     logits, probs, labelmap = deeplab_inference(self.deeplab, first_frame)
+        #     staticmap = torch.zeros_like(labelmap)
+        #     for i in self.dynamic_indices: 
+        #         staticmap[labelmap==i] = 1
+        #     out['SEGMENTATION'] = staticmap.unsqueeze(0)
+        #     print(f"found: {[(x, self.label_dict[x]) for x in torch.unique(labelmap).tolist()]}")
+        #     #out['SEGMENTATION'] = probs
         if self.use_segmentation: 
-            first_frame = frames[0].permute(2,0,1).unsqueeze(0)
-            logits, probs, labelmap = deeplab_inference(self.deeplab, first_frame)
-            staticmap = torch.zeros_like(labelmap)
-            for i in self.dynamic_indices: 
-                staticmap[labelmap==i] = 1
-            out['SEGMENTATION'] = staticmap.unsqueeze(0)
-            print(f"found: {[(x, self.label_dict[x]) for x in torch.unique(labelmap).tolist()]}")
-            #out['SEGMENTATION'] = probs
+            out['SEGMENTATION'] = motion_segmentation(frames, eps = self.seg_eps).permute(2,0,1)
         return out
 
 

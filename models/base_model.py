@@ -201,7 +201,7 @@ class BaseModel():
                     if hasattr(state_dict, '_metadata'):
                         del state_dict._metadata
 
-                    print(state_dict.keys(),"\n\nBREAKBREAK\n\n", net.cpu().state_dict().keys())
+                    #print(state_dict.keys(),"\n\nBREAKBREAK\n\n", net.cpu().state_dict().keys())
                     
                     # patch InstanceNorm checkpoints prior to 0.4
                     # for key in list(state_dict.keys()):  # need to copy keys here because we mutate in loop

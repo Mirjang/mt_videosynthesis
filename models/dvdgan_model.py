@@ -34,6 +34,7 @@ class DvdConditionalGenerator(nn.Module):
         self.loss_ae = loss_ae
         self.L_aux = 0
         self.noise = noise
+        self.criterionAE = torch.nn.MSELoss()
 
         self.encoder = nn.ModuleList([
             nn.Sequential(
@@ -95,7 +96,7 @@ class DvdConditionalGenerator(nn.Module):
 
         if self.noise: 
             if noise is None: 
-                noise = torch.empty(encoder_list[0].shape).normal_(mean=0, std=1)
+                noise = torch.empty(encoder_list[0].shape, device=x.device).normal_(mean=0, std=1)
             y = noise.view(encoder_list[0].shape) # B x ch x ld x ld
         else: #use encoded frame
             y = encoder_list[0] # B x ch x ld x ld
@@ -149,13 +150,28 @@ class DvdConditionalGenerator(nn.Module):
             _,_, C, W, H = y.size()
             y = y.view(-1, C, W, H)
 
-        #if self.loss_ae: 
-            
+        frame_0 = x[:, :3, ...].unsqueeze(1)
+        if self.loss_ae:
+            frame_0 = 0
+            up = 0
+            for _, conv in enumerate(self.conv):
+                if isinstance(conv, GResBlock):
+                    if conv.upsample_factor == 2 and up < len(encoder_list): 
+                        frame_0 += encoder_list[up]
+                        up += 1   
+                        #print(up, frame_0.shape, encoder_list[up].shape)
+                    frame_0 = conv(frame_0)
+                # elif isinstance(conv, ConvGRU):
+                #     frame_0 = conv(frame_0)
+            frame_0 = torch.tanh(self.colorize(frame_0))
+            self.L_aux = self.criterionAE(frame_0, x[:, :3, ...])
+
+            frame_0 = frame_0.unsqueeze(1)
 
         y = self.colorize(y)
         y = y.view(-1, self.nframes,3, W, H) # B, T/S, C*S, W, H
         y = torch.tanh(y)
-        y = torch.cat([x[:, :3, ...].unsqueeze(1), y],  dim = 1)
+        y = torch.cat([frame_0, y],  dim = 1)
         y = (y+1) / 2.0 #[-1,1] -> [0,1] for vis
         return y
 
@@ -270,7 +286,9 @@ class DvdGanModel(BaseModel):
             parser.add_argument('--lambda_S', type=float, default=.1, help='weight for spatial loss')
             parser.add_argument('--lambda_T', type=float, default=.1, help='weight for temporal loss')
             parser.add_argument('--lambda_L1', type=float, default=10.0, help='weight for pretrain L1 loss')
-            parser.add_argument('--lambda_GP', type=float, default=1, help='gradient penalty')
+            parser.add_argument('--lambda_GP', type=float, default=1, help='weight for gradient penalty')
+            parser.add_argument('--lambda_AUX', type=float, default=0, help='weight for aux loss')
+
         return parser
 
     def initialize(self, opt):
@@ -302,7 +320,7 @@ class DvdGanModel(BaseModel):
             self.model_names = ['netG']
         # load/define networks
         
-        self.conditional = True
+        self.conditional = False
         self.wgan = True
         if not self.wgan:
             self.loss_names += ['accDs_real','accDs_fake','accDt_real', 'accDt_fake']
@@ -310,12 +328,12 @@ class DvdGanModel(BaseModel):
             self.loss_names += ['Ds_real', 'Ds_fake', 'Dt_real', 'Dt_fake', 'Ds_GP', 'Dt_GP']
         input_nc = opt.input_nc + (opt.num_segmentation_classes if opt.use_segmentation else 0)
         if opt.generator == "dvdgan":
-            netG = DvdConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = 16, latent_dim = 4, step_frames = 1, bn = True,)
+            netG = DvdConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = 16, latent_dim = 4, step_frames = 1, bn = True, noise=True, loss_ae=self.isTrain and self.opt.lambda_AUX>0)
             #netG = DvdConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = 16, latent_dim = 8, step_frames = 1, bn = True, norm = nn.InstanceNorm2d,)
 
             #netG = DVDGan(self.nframes,input_nc ,ngf = 32, latent_nc=120,fp_levels = 3, res = self.opt.resolution, )
         elif opt.generator == "trajgru": 
-            netG = DvdConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = 16, latent_dim = 8, step_frames = 1, bn = False, trajgru=True)
+            netG = DvdConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = 16, latent_dim = 4, step_frames = 1, bn = True, noise=True, loss_ae=self.isTrain and self.opt.lambda_AUX>0, trajgru=True)
             # netG = DvdConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = 16, latent_dim = 8, step_frames = 1, bn = True, norm = nn.InstanceNorm2d, trajgru=True)
 
           #  netG = DVDGan(self.nframes,input_nc,ngf = 16, latent_nc=120, fp_levels = 3, trajgru=True, res = self.opt.resolution, )
@@ -325,8 +343,8 @@ class DvdGanModel(BaseModel):
             assert False, f"unknown generator model specified: {opt.generator}!"
         self.netG = networks.init_net(netG, opt.init_type, opt.init_gain, self.gpu_ids)
 
-        if hasattr(self.netG, "L_aux"): 
-            self.visual_names.append("Gaux")
+        if self.isTrain and self.opt.lambda_AUX > 0: # and hasattr(self.netG, "L_aux"): 
+            self.loss_names += ["Gaux"]
             self.loss_Gaux = 0
 
         if self.isTrain:
@@ -390,6 +408,8 @@ class DvdGanModel(BaseModel):
             self.netG.nFrames = frame_length if frame_length>0 else self.nframes
  
         self.predicted_video = self.netG(self.input)
+
+        
         
         if self.target_video.size(1) >= self.nframes: 
             self.prediction_target_video = torch.cat([self.predicted_video[:, :self.nframes,...].detach().cpu(), self.target_video.detach().cpu()], dim = 4)
@@ -481,7 +501,12 @@ class DvdGanModel(BaseModel):
         self.loss_Gs = torch.mean(pred_fake_ds)
         pred_fake_dt = self.netDt(self.predicted_video)
         self.loss_Gt = torch.mean(pred_fake_dt)
-        self.loss_G = (self.loss_Gs * self.opt.lambda_S + self.loss_Gt * self.opt.lambda_T)
+
+        self.loss_Gaux = getattr(self.netG.module, "L_aux", 0)
+
+        self.loss_G = self.loss_Gs * self.opt.lambda_S\
+            + self.loss_Gt * self.opt.lambda_T\
+            + self.loss_Gaux * self.opt.lambda_AUX
         if epoch <= self.opt.pretrain_epochs:
             self.loss_G_L1 =self.criterionL1(self.predicted_video, self.target_video) * self.opt.lambda_L1
             self.loss_G += self.loss_G_L1
@@ -528,8 +553,10 @@ class DvdGanModel(BaseModel):
         pred_fake_dt = self.netDt(self.predicted_video)
         self.loss_Gt = self.criterionGAN(pred_fake_dt, True)
 
-        self.loss_G = self.loss_Gs * self.opt.lambda_S + self.loss_Gt * self.opt.lambda_T
-        self.loss_G_aux = getattr(self.netG, "L_aux", default=0)
+        self.loss_Gaux = getattr(self.netG.module, "L_aux", 0)
+        self.loss_G = self.loss_Gs * self.opt.lambda_S\
+            + self.loss_Gt * self.opt.lambda_T\
+            + self.loss_Gaux * self.opt.lambda_AUX
             
         if epoch <= self.opt.pretrain_epochs:
             self.loss_G_L1 =self.criterionL1(self.predicted_video, self.target_video) * self.opt.lambda_L1

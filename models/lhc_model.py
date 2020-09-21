@@ -166,6 +166,7 @@ class LHC(nn.Module):
 
         if x.size(1) > 3: 
             seg_in = x[:,3:,...]
+            print(x.shape, seg_in.shape)
             seg = F.interpolate(seg_in, size=(self.latent_dim, self.latent_dim)).view(x.size(0), 1, -1).expand(-1,2,-1)#Bx2xP
         
         x = self.encoder(x)
@@ -210,8 +211,8 @@ class LHC(nn.Module):
                 x_part = x_part + self.rule_mlp(x_part)
                 v = self.velocity_mlp(x_part) / self.latent_dim   
 
-                if seg is not None: 
-                    v = v*seg 
+                # if seg is not None: 
+                #     v = v*seg 
                 #integrate position
                 pos = pos + v #.clamp(-1e-2,1e-2)
                 pass
@@ -235,10 +236,10 @@ class LHC(nn.Module):
             y[:,i] = sample
 
             laux += torch.relu(pos**2 -1).mean() / self.nframes
-            if seg is not None: 
-                laux += (v*(1-seg)).mean() / self.nframes #static areas should have 0 velocity
-            else: 
-                laux += torch.relu(v**2 -0.2).mean() / self.nframes
+            # if seg is not None: 
+            #     laux += (v*(1-seg)).mean() / self.nframes #static areas should have 0 velocity
+            # else: 
+            #     laux += torch.relu(v**2 -0.2).mean() / self.nframes
 
             if self.debug: 
                 pass
@@ -302,12 +303,10 @@ class LHCModel(DvdGanModel):
 
     @staticmethod
     def modify_commandline_options(parser, is_train=True):
+        DvdGanModel.modify_commandline_options(parser, is_train = is_train)
         if is_train:
             parser.set_defaults(pool_size=0, no_lsgan=True)
-            parser.add_argument('--lambda_S', type=float, default=.1, help='weight for spatial loss')
-            parser.add_argument('--lambda_T', type=float, default=.1, help='weight for temporal loss')
-            parser.add_argument('--lambda_L1', type=float, default=1.0, help='weight for pretrain L1 loss')
-            parser.add_argument('--lambda_GP', type=float, default=1, help='gradient penalty')
+          
             parser.add_argument('--lambda_reg', type=float, default=1, help='regularizer')
 
         return parser
