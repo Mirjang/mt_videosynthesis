@@ -65,6 +65,12 @@ class BaseOptions():
         parser.add_argument('--motion_seg_eps',  type=float, default=15, help='theshold for detecing motion via diff frames (images are in (0,256)')
 
         parser.add_argument('--no_augmentation', action='store_true', help='disable augmentation')
+        parser.add_argument('--no_wgan', action='store_true', help='use classic gan')
+        parser.add_argument('--no_bn', action='store_true', help='disable batchnorm')
+        parser.add_argument('--no_noise', action='store_true', help='disable noise input')
+
+        parser.add_argument('--conditional', action='store_true', help='condition Ds on input frame')
+
 
         self.initialized = True
         return parser
