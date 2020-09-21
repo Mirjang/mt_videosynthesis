@@ -1,5 +1,5 @@
 """
-adapted from 
+Author:
 https://github.com/Hzzone/Precipitation-Nowcasting/blob/master/nowcasting/models/trajGRU.py
 
 """
