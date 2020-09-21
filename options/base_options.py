@@ -70,6 +70,9 @@ class BaseOptions():
         parser.add_argument('--no_noise', action='store_true', help='disable noise input')
 
         parser.add_argument('--conditional', action='store_true', help='condition Ds on input frame')
+        parser.add_argument('--ch_g', type=int, default=None, help='gen. channel multiplier')
+        parser.add_argument('--ch_ds', type=int, default=None, help='ds. channel multiplier')
+        parser.add_argument('--ch_dt', type=int, default=None, help='dt. channel multiplier')
 
 
         self.initialized = True

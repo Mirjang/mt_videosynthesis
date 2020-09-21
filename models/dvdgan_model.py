@@ -328,17 +328,17 @@ class DvdGanModel(BaseModel):
             self.loss_names += ['Ds_real', 'Ds_fake', 'Dt_real', 'Dt_fake', 'Ds_GP', 'Dt_GP']
         input_nc = opt.input_nc + (opt.num_segmentation_classes if opt.use_segmentation else 0)
         if opt.generator == "dvdgan":
-            netG = DvdConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = 32, latent_dim = 4, step_frames = 1, bn = not opt.no_bn, noise=not opt.no_noise, loss_ae=self.isTrain and self.opt.lambda_AUX>0)
+            netG = DvdConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = opt.ch_g, latent_dim = 4, step_frames = 1, bn = not opt.no_bn, noise=not opt.no_noise, loss_ae=self.isTrain and self.opt.lambda_AUX>0)
             #netG = DvdConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = 16, latent_dim = 8, step_frames = 1, bn = True, norm = nn.InstanceNorm2d,)
 
             #netG = DVDGan(self.nframes,input_nc ,ngf = 32, latent_nc=120,fp_levels = 3, res = self.opt.resolution, )
         elif opt.generator == "trajgru": 
-            netG = DvdConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = 16, latent_dim = 4, step_frames = 1, bn = not opt.no_bn, noise=not opt.no_noise, loss_ae=self.isTrain and self.opt.lambda_AUX>0, trajgru=True)
+            netG = DvdConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = opt.ch_g, latent_dim = 4, step_frames = 1, bn = not opt.no_bn, noise=not opt.no_noise, loss_ae=self.isTrain and self.opt.lambda_AUX>0, trajgru=True)
             # netG = DvdConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = 16, latent_dim = 8, step_frames = 1, bn = True, norm = nn.InstanceNorm2d, trajgru=True)
 
           #  netG = DVDGan(self.nframes,input_nc,ngf = 16, latent_nc=120, fp_levels = 3, trajgru=True, res = self.opt.resolution, )
         elif opt.generator == "dvdgansimple":
-            netG = GRUEncoderDecoderNet(self.nframes,input_nc ,ngf = 16, hidden_dims=128, enc2hidden = True)
+            netG = GRUEncoderDecoderNet(self.nframes,input_nc ,ngf = opt.ch_g, hidden_dims=128, enc2hidden = True)
         else:
             assert False, f"unknown generator model specified: {opt.generator}!"
         self.netG = networks.init_net(netG, opt.init_type, opt.init_gain, self.gpu_ids)
@@ -352,11 +352,11 @@ class DvdGanModel(BaseModel):
             assert self.nframes > self.ndsframes+1, "number of frames sampled for disc should be leq to number of total frames generated (length-1)"
        
             #default chn = 128
-            netDs = DvdSpatialDiscriminator(chn = 16, sigmoid = not self.wgan, cgan = self.conditional)
+            netDs = DvdSpatialDiscriminator(chn = opt.ch_ds, sigmoid = not self.wgan, cgan = self.conditional)
             self.netDs = networks.init_net(netDs, opt.init_type, opt.init_gain, self.gpu_ids)
 
             #default chn = 128
-            netDt = DvdTemporalDiscriminator(chn = 16, sigmoid = not self.wgan)
+            netDt = DvdTemporalDiscriminator(chn = opt.ch_dt, sigmoid = not self.wgan)
             self.netDt = networks.init_net(netDt, opt.init_type, opt.init_gain, self.gpu_ids)
 
             # define loss functions
