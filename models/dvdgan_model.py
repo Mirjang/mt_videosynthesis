@@ -320,7 +320,7 @@ class DvdGanModel(BaseModel):
             self.model_names = ['netG']
         # load/define networks
         
-        self.conditional = False
+        self.conditional = True
         self.wgan = True
         if not self.wgan:
             self.loss_names += ['accDs_real','accDs_fake','accDt_real', 'accDt_fake']
