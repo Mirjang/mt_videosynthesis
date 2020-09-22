@@ -171,7 +171,7 @@ class DvdConditionalGenerator(nn.Module):
         return y
 
 class DvdStyleConditionalGenerator(nn.Module):
-    def __init__(self, input_nc = 3, latent_dim=4, ch=8, nframes=48, step_frames = 1, trajgru = False, noise = False):
+    def __init__(self, input_nc = 3, latent_dim=4,style_dim = 256, ch=8, nframes=48, step_frames = 1, trajgru = False, noise = False):
         super().__init__()
         self.step_frames = step_frames
         self.latent_dim = latent_dim
@@ -193,7 +193,11 @@ class DvdStyleConditionalGenerator(nn.Module):
             GResBlock(ch*8, ch*8,n_class=1, downsample_factor = 2, bn = bn, weight_norm=None),
 #            SpectralNorm(nn.Conv2d(8*ch, 8*ch, kernel_size=1)),
         ])
-        style_dim = ch*8
+        self.encoder2style = nn.Sequential(
+            [
+                nn.Linear(ch*8*latent_dim*latent_dim, style_dim),
+                nn.Sigmoid(),
+            ])
         n_layers = 1
         self.conv = nn.ModuleList([
             #ConvGRU(8 * ch, hidden_sizes=[8 * ch, 16 * ch, 8 * ch], kernel_sizes=[3, 5, 3], n_layers=3),
@@ -240,6 +244,7 @@ class DvdStyleConditionalGenerator(nn.Module):
             y = noise.view(encoder_list[0].shape) # B x ch x ld x ld
         else: #use encoded frame
             y = encoder_list[0] # B x ch x ld x ld
+        style = self.encoder2style(y.view(x.size(0), -1))
         depth = 0
   
         for k, conv in enumerate(self.conv):
@@ -272,8 +277,8 @@ class DvdStyleConditionalGenerator(nn.Module):
                 depth += 1
 
             elif isinstance(conv, StyledConv):
-                print(y.shape, encoder_list[0].shape, conv)
-                y = conv(y, encoder_list[0]) # BT, C, W, H
+                print(y.shape, style.shape, conv)
+                y = conv(y, style) # BT, C, W, H
 
         y = F.relu(y)
         BT, C, W, H = y.size()
