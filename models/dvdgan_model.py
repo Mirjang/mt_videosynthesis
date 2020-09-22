@@ -597,7 +597,7 @@ class DvdGanModel(BaseModel):
 
         grad = torch.autograd.grad(outputs=out,
                                    inputs=interpolated,
-                                   grad_outputs=torch.ones(out.size()).to(net.device),
+                                   grad_outputs=torch.ones(out.size()).to(fake_img.device),
                                    retain_graph=True,
                                    create_graph=True,
                                    only_inputs=True)[0]
