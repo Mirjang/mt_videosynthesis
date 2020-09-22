@@ -178,8 +178,6 @@ class DvdStyleConditionalGenerator(nn.Module):
         self.ch = ch
         self.nframes = nframes -1 # first frame is just input frame
         self.n_steps = math.ceil(self.nframes / step_frames)
-        self.loss_ae = loss_ae
-        self.L_aux = 0
         self.noise = noise
         self.criterionAE = torch.nn.MSELoss()
 
