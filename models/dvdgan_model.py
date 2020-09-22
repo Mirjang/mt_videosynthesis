@@ -194,6 +194,7 @@ class DvdStyleConditionalGenerator(nn.Module):
 #            SpectralNorm(nn.Conv2d(8*ch, 8*ch, kernel_size=1)),
         ])
         self.encoder2style = nn.Sequential(
+                GResBlock(ch*8, ch*8,n_class=1, downsample_factor = 2, bn = bn, weight_norm=None),
                 GResBlock(ch*8, ch*4,n_class=1, downsample_factor = 2, bn = bn, weight_norm=None),
                 nn.Flatten(),
                 nn.Linear(ch*4*2*2, style_dim),
