@@ -74,6 +74,8 @@ class BaseOptions():
         parser.add_argument('--ch_ds', type=int, default=None, help='ds. channel multiplier')
         parser.add_argument('--ch_dt', type=int, default=None, help='dt. channel multiplier')
 
+        parser.add_argument('--style_noise', action='store_true', help='latent input = noise if noise else encoder output')
+
 
         self.initialized = True
         return parser

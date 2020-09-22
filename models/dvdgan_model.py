@@ -171,7 +171,7 @@ class DvdConditionalGenerator(nn.Module):
         return y
 
 class DvdStyleConditionalGenerator(nn.Module):
-    def __init__(self, input_nc = 3, latent_dim=4, ch=8, nframes=48, step_frames = 1, trajgru = False,):
+    def __init__(self, input_nc = 3, latent_dim=4, ch=8, nframes=48, step_frames = 1, trajgru = False, noise = False):
         super().__init__()
         self.step_frames = step_frames
         self.latent_dim = latent_dim
@@ -476,9 +476,9 @@ class DvdGanModel(BaseModel):
             netG = DvdConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = opt.ch_g, latent_dim = 4, step_frames = 1, bn = not opt.no_bn, noise=not opt.no_noise, loss_ae=self.isTrain and self.opt.lambda_AUX>0, trajgru=True)
             # netG = DvdConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = 16, latent_dim = 8, step_frames = 1, bn = True, norm = nn.InstanceNorm2d, trajgru=True)
         elif opt.generator == "style": 
-            netG = DvdStyleConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = opt.ch_g, latent_dim = 4, step_frames = 1)
+            netG = DvdStyleConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = opt.ch_g, latent_dim = 4, step_frames = 1, noise = opt.style_noise)
         elif opt.generator == "styletraj": 
-            netG = DvdStyleConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = opt.ch_g, latent_dim = 4, step_frames = 1, trajgru=True)
+            netG = DvdStyleConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = opt.ch_g, latent_dim = 4, step_frames = 1, noise = opt.style_noise, trajgru=True)
 
         elif opt.generator == "dvdgansimple":
             netG = GRUEncoderDecoderNet(self.nframes,input_nc ,ngf = opt.ch_g, hidden_dims=128, enc2hidden = True)
