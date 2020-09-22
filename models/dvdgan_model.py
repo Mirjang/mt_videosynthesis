@@ -180,7 +180,7 @@ class DvdStyleConditionalGenerator(nn.Module):
         self.n_steps = math.ceil(self.nframes / step_frames)
         self.noise = noise
         self.criterionAE = torch.nn.MSELoss()
-
+        bn = False
         self.encoder = nn.ModuleList([
             nn.Sequential(
                 SpectralNorm(nn.Conv2d(input_nc, ch, kernel_size=(3, 3), padding=1)),
