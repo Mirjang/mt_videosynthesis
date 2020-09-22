@@ -245,7 +245,7 @@ class DvdStyleConditionalGenerator(nn.Module):
             y = noise.view(encoder_list[0].shape) # B x ch x ld x ld
         else: #use encoded frame
             y = encoder_list[0] # B x ch x ld x ld
-        print(y.shape)
+        print(y.shape, self.latent_dim)
         style = self.encoder2style(y)
         depth = 0
   
