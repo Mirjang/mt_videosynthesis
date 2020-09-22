@@ -271,7 +271,7 @@ class DvdStyleConditionalGenerator(nn.Module):
                 y = y.view(-1, C, W, H)
                 depth += 1
 
-            elif isinstance(conv, GResBlock):
+            elif isinstance(conv, StyledConv):
                 y = conv(y, self.encoder_list[0]) # BT, C, W, H
 
         y = F.relu(y)
