@@ -280,7 +280,7 @@ class DvdStyleConditionalGenerator(nn.Module):
                 depth += 1
 
             elif isinstance(conv, StyledConv):
-                print(y.shape, style.shape, conv)
+             #   print(y.shape, style.shape, conv)
                 y = conv(y, style) # BT, C, W, H
 
         y = F.relu(y)
@@ -597,7 +597,7 @@ class DvdGanModel(BaseModel):
 
         grad = torch.autograd.grad(outputs=out,
                                    inputs=interpolated,
-                                   grad_outputs=torch.ones(out.size()).cuda(),
+                                   grad_outputs=torch.ones(out.size()).to(net.device),
                                    retain_graph=True,
                                    create_graph=True,
                                    only_inputs=True)[0]
