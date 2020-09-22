@@ -272,6 +272,7 @@ class DvdStyleConditionalGenerator(nn.Module):
                 depth += 1
 
             elif isinstance(conv, StyledConv):
+                print(y.shape, encoder_list[0].shape, conv)
                 y = conv(y, encoder_list[0]) # BT, C, W, H
 
         y = F.relu(y)
