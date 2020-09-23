@@ -1,7 +1,7 @@
 set -ex
 
 # GPU
-GPU_ID=xla
+GPU_ID=0
 
 VISDOM_PORT=8197
 
