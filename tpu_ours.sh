@@ -26,8 +26,6 @@ FPS=25
 GENERATOR=style
 
 NAME=${DATASET}_${MODEL}_${GENERATOR}_${RESOLUTION}_0
-git add -A 
-git commit -m $NAME
 DISPNAME=${NAME}
 # vid settings
 SKIP=1
