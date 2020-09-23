@@ -248,7 +248,7 @@ class DvdStyleConditionalGenerator(nn.Module):
             y = encoder_list[0] # B x ch x ld x ld
         
         style = self.encoder2style(y)
-        print(y.shape, style.shape, style(y).unsqueeze(1).expand(-1, self.nframes, -1).shape, x.size(0)*self.nframes)
+        print(y.shape, style.shape, style.unsqueeze(1).expand(-1, self.nframes, -1).shape, x.size(0)*self.nframes)
         style = style.unsqueeze(1).expand(-1, self.nframes, -1).view(x.size(0)*self.nframes, -1) # BT x style
 
         depth = 0
