@@ -42,12 +42,12 @@ class DvdConditionalGenerator(nn.Module):
                 SpectralNorm(nn.Conv2d(input_nc, ch, kernel_size=(3, 3), padding=1)),
                 GResBlock(ch, ch*2,n_class=1, downsample_factor = 2, bn = bn),
                 ),
- #           GResBlock(2*ch, 4*ch, n_class=1, downsample_factor = 2, bn = bn),
-            #GResBlock(2*ch, 4*ch, n_class=1, downsample_factor = 2, bn = bn),
+        #    GResBlock(2*ch, 4*ch, n_class=1, downsample_factor = 2, bn = bn),
+        #    GResBlock(2*ch, 4*ch, n_class=1, downsample_factor = 2, bn = bn),
             GResBlock(ch*2, ch*4,n_class=1, downsample_factor = 2, bn = bn),
             GResBlock(ch*4, ch*8,n_class=1, downsample_factor = 2, bn = bn),
             GResBlock(ch*8, ch*8,n_class=1, downsample_factor = 2, bn = bn),
-#            SpectralNorm(nn.Conv2d(8*ch, 8*ch, kernel_size=1)),
+        #    SpectralNorm(nn.Conv2d(8*ch, 8*ch, kernel_size=1)),
         ])
         n_layers = 1
         self.conv = nn.ModuleList([
@@ -99,7 +99,6 @@ class DvdConditionalGenerator(nn.Module):
   
         for k, conv in enumerate(self.conv):
             if isinstance(conv, ConvGRU):
-
                 if k > 0:
                     _, C, W, H = y.size()
                     y = y.view(-1, self.n_steps, C, W, H).contiguous()
