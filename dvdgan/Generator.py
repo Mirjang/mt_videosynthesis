@@ -62,7 +62,7 @@ class Generator(nn.Module):
         # TODO impl ScaledCrossReplicaBatchNorm
         # self.ScaledCrossReplicaBN = ScaledCrossReplicaBatchNorm2d(1 * chn)
 
-        self.colorize = SpectralNorm(nn.Conv2d(2 * ch, 3, kernel_size=(3, 3), padding=1))
+        self.colorize = SpectralNorm(nn.Conv2d(1 * ch, 3, kernel_size=(3, 3), padding=1))
 
 
     def forward(self, x):
