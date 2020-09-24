@@ -509,7 +509,7 @@ class DvdGanModel(BaseModel):
             self.netDs = networks.init_net(netDs, opt.init_type, opt.init_gain, self.gpu_ids)
 
             #default chn = 128
-            netDt = DvdTemporalDiscriminator(chn = opt.ch_dt, sigmoid = not self.wgan)
+            netDt = DvdTemporalDiscriminator(chn = opt.ch_dt, sigmoid = not self.wgan, prepool=not opt.no_dt_prepool)
             self.netDt = networks.init_net(netDt, opt.init_type, opt.init_gain, self.gpu_ids)
 
             # define loss functions

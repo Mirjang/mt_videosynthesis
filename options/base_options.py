@@ -64,6 +64,7 @@ class BaseOptions():
         parser.add_argument('--no_wgan', action='store_true', help='use classic gan')
         parser.add_argument('--no_bn', action='store_true', help='disable batchnorm')
         parser.add_argument('--no_noise', action='store_true', help='disable noise input')
+        parser.add_argument('--no_dt_prepool', action='store_true', help='disable avg pool to dt input')
 
         parser.add_argument('--conditional', action='store_true', help='condition Ds on input frame')
         parser.add_argument('--ch_g', type=int, default=None, help='gen. channel multiplier')

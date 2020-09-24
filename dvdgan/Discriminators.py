@@ -284,11 +284,11 @@ class Res3dBlock(nn.Module):
 
 class TemporalDiscriminator(nn.Module):
 
-    def __init__(self, chn=128, n_class=4, sigmoid = False):
+    def __init__(self, chn=128, n_class=4, sigmoid = False, prepool = True):
         super().__init__()
 
         gain = 2 ** 0.5
-
+        self.prepool = prepool
         self.pre_conv = nn.Sequential(
             SpectralNorm(nn.Conv3d(3, 2*chn, 3, padding=1)),
             nn.ReLU(),
@@ -317,9 +317,10 @@ class TemporalDiscriminator(nn.Module):
 
         # pre-process with avg_pool2d to reduce tensor size
         B, T, C, H, W = x.size()
-        x = F.avg_pool2d(x.view(B * T, C, H, W), kernel_size=2)
-        _, _, H, W = x.size()
-        x = x.view(B, T, C, H, W).permute(0, 2, 1, 3, 4).contiguous() # B x C x T x W x H
+        if self.prepool: 
+            x = F.avg_pool2d(x.view(B * T, C, H, W), kernel_size=2)
+            _, _, H, W = x.size()
+            x = x.view(B, T, C, H, W).permute(0, 2, 1, 3, 4).contiguous() # B x C x T x W x H
 
         out = self.pre_conv(x)
         out = out + self.pre_skip(F.avg_pool3d(x, 2))
