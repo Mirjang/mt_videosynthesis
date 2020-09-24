@@ -62,10 +62,9 @@ class UnconditionalModel(BaseModel):
             self.model_names = ['netG']
         # load/define networks
         
-        self.conditional = opt.conditional
+        self.conditional = False
         self.wgan = not opt.no_wgan
-        if not self.wgan:
-            self.loss_names += ['accDs_real','accDs_fake','accDt_real', 'accDt_fake']
+    
         input_nc = opt.input_nc
 
         netG = DvdGenerator(in_dim=self.in_dim, latent_dim=4, n_class = 0, ch = opt.ch_g, n_frames = self.nframes, hierar_flag=False)
