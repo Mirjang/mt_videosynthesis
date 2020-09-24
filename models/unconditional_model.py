@@ -24,9 +24,9 @@ from trajgru.trajgru import TrajGRU
 from stylegan2.model import StyledConv
 #import torch.nn.utils.spectral_norm as SpectralNorm
 
-class DvdGanModel(BaseModel):
+class UnconditionalModel(BaseModel):
     def name(self):
-        return 'DvdGanModel'
+        return 'UnconditionalModel'
 
     @staticmethod
     def modify_commandline_options(parser, is_train=True):
