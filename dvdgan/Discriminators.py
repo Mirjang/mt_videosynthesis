@@ -320,7 +320,7 @@ class TemporalDiscriminator(nn.Module):
         if self.prepool: 
             x = F.avg_pool2d(x.view(B * T, C, H, W), kernel_size=2)
             _, _, H, W = x.size()
-            x = x.view(B, T, C, H, W).permute(0, 2, 1, 3, 4).contiguous() # B x C x T x W x H
+        x = x.view(B, T, C, H, W).permute(0, 2, 1, 3, 4).contiguous() # B x C x T x W x H
 
         out = self.pre_conv(x)
         out = out + self.pre_skip(F.avg_pool3d(x, 2))
