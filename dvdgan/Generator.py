@@ -39,20 +39,20 @@ class Generator(nn.Module):
         self.conv = nn.ModuleList([
             ConvGRU(8 * ch, hidden_sizes=[8 * ch, 16 * ch, 8 * ch], kernel_sizes=[3, 5, 3], n_layers=3),
             # ConvGRU(8 * ch, hidden_sizes=[8 * ch, 8 * ch], kernel_sizes=[3, 3], n_layers=2),
-            GResBlock(8 * ch, 8 * ch, n_class=in_dim * 2, upsample_factor=1),
-            GResBlock(8 * ch, 8 * ch, n_class=in_dim * 2),
+            GResBlock(8 * ch, 8 * ch, n_class=in_dim, upsample_factor=1),
+            GResBlock(8 * ch, 8 * ch, n_class=in_dim),
             ConvGRU(8 * ch, hidden_sizes=[8 * ch, 16 * ch, 8 * ch], kernel_sizes=[3, 5, 3], n_layers=3),
             # ConvGRU(8 * ch, hidden_sizes=[8 * ch, 8 * ch], kernel_sizes=[3, 3], n_layers=2),
-            GResBlock(8 * ch, 8 * ch, n_class=in_dim * 2, upsample_factor=1),
-            GResBlock(8 * ch, 8 * ch, n_class=in_dim * 2),
+            GResBlock(8 * ch, 8 * ch, n_class=in_dim, upsample_factor=1),
+            GResBlock(8 * ch, 8 * ch, n_class=in_dim),
             ConvGRU(8 * ch, hidden_sizes=[8 * ch, 16 * ch, 8 * ch], kernel_sizes=[3, 5, 3], n_layers=3),
             # ConvGRU(8 * ch, hidden_sizes=[8 * ch, 8 * ch], kernel_sizes=[3, 3], n_layers=2),
-            GResBlock(8 * ch, 8 * ch, n_class=in_dim * 2, upsample_factor=1),
-            GResBlock(8 * ch, 4 * ch, n_class=in_dim * 2),
+            GResBlock(8 * ch, 8 * ch, n_class=in_dim, upsample_factor=1),
+            GResBlock(8 * ch, 4 * ch, n_class=in_dim),
             ConvGRU(4 * ch, hidden_sizes=[4 * ch, 8 * ch, 4 * ch], kernel_sizes=[3, 5, 5], n_layers=3),
             # ConvGRU(4 * ch, hidden_sizes=[4 * ch, 4 * ch], kernel_sizes=[3, 5], n_layers=2),
-            GResBlock(4 * ch, 4 * ch, n_class=in_dim * 2, upsample_factor=1),
-            GResBlock(4 * ch, 2 * ch, n_class=in_dim * 2)
+            GResBlock(4 * ch, 4 * ch, n_class=in_dim, upsample_factor=1),
+            GResBlock(4 * ch, 2 * ch, n_class=in_dim)
         ])
 
         # TODO impl ScaledCrossReplicaBatchNorm
@@ -105,8 +105,8 @@ class Generator(nn.Module):
                 y = y.view(-1, C, W, H)
 
             elif isinstance(conv, GResBlock):
-                # condition = torch.cat([noise_emb, class_emb], dim=1)
-                # condition = condition.repeat(self.n_frames,1)
+                condition = noise_emb
+                condition = condition.repeat(self.n_frames,1)
                 y = conv(y) # BT, C, W, H
 
         y = F.relu(y)
