@@ -75,7 +75,7 @@ class UnconditionalModel(BaseModel):
             assert self.nframes > self.ndsframes+1, "number of frames sampled for disc should be leq to number of total frames generated (length-1)"
        
             #default chn = 128
-            netDs = DvdSpatialDiscriminator(chn = opt.ch_ds, sigmoid = not self.wgan, cgan = self.conditional)
+            netDs = DvdSpatialDiscriminator(chn = opt.ch_ds, sigmoid = not self.wgan, cgan = False)
             self.netDs = networks.init_net(netDs, opt.init_type, opt.init_gain, self.gpu_ids)
 
             #default chn = 128
@@ -169,7 +169,7 @@ class UnconditionalModel(BaseModel):
     def sample_frames(self, vid, detach = False):
         _, T, *_ = self.predicted_video.shape
         frames=[]
-        for i in random.sample(range(1, T), min(T-1,self.ndsframes)):
+        for i in random.sample(range(T), min(T-1,self.ndsframes)):
             f = vid[:,i,...]
             if detach:
                 f = f.detach().to(self.device)
