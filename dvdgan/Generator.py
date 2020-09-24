@@ -105,9 +105,9 @@ class Generator(nn.Module):
                 y = y.view(-1, C, W, H)
 
             elif isinstance(conv, GResBlock):
-                condition = torch.cat([noise_emb, class_emb], dim=1)
-                condition = condition.repeat(self.n_frames,1)
-                y = conv(y, condition) # BT, C, W, H
+                # condition = torch.cat([noise_emb, class_emb], dim=1)
+                # condition = condition.repeat(self.n_frames,1)
+                y = conv(y) # BT, C, W, H
 
         y = F.relu(y)
         y = self.colorize(y)
