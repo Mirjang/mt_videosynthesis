@@ -24,9 +24,8 @@ class Generator(nn.Module):
         self.hierar_flag = hierar_flag
         self.n_frames = n_frames
 
-        self.embedding = nn.Embedding(n_class, in_dim)
 
-        self.affine_transfrom = nn.Linear(in_dim * 2, latent_dim * latent_dim * 8 * ch)
+        self.affine_transfrom = nn.Linear(in_dim, latent_dim * latent_dim * 8 * ch)
 
         # self.self_attn = SelfAttention(8 * ch)
 
@@ -69,12 +68,10 @@ class Generator(nn.Module):
         else:
             noise_emb = x
 
-        class_emb = self.embedding(class_id)
-
         if self.hierar_flag is True:
-            y = self.affine_transfrom(torch.cat((noise_emb[0], class_emb), dim=1)) # B x (2 x ld x ch)
+            y = self.affine_transfrom(noise_emb[0]) # B x (2 x ld x ch)
         else:
-            y = self.affine_transfrom(torch.cat((noise_emb, class_emb), dim=1)) # B x (2 x ld x ch)
+            y = self.affine_transfrom(noise_emb) # B x (2 x ld x ch)
 
         y = y.view(-1, 8 * self.ch, self.latent_dim, self.latent_dim) # B x ch x ld x ld
 
