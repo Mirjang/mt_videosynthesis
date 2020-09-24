@@ -35,6 +35,7 @@ class UnconditionalModel(BaseModel):
             parser.add_argument('--lambda_S', type=float, default=.1, help='weight for spatial loss')
             parser.add_argument('--lambda_T', type=float, default=.1, help='weight for temporal loss')
             parser.add_argument('--lambda_GP', type=float, default=1, help='weight for gradient penalty')
+            parser.add_argument('--lambda_AUX', type=float, default=0, help='weight for gradient penalty')
 
         return parser
 
