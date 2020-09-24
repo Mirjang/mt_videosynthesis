@@ -505,7 +505,8 @@ class DvdGanModel(BaseModel):
             assert self.nframes > self.ndsframes+1, "number of frames sampled for disc should be leq to number of total frames generated (length-1)"
        
             #default chn = 128
-            netDs = DvdSpatialDiscriminator(chn = opt.ch_ds, sigmoid = not self.wgan, cgan = self.conditional)
+
+            netDs = DvdSpatialDiscriminator(chn = opt.ch_ds, sigmoid = not self.wgan, input_nc = (3 + self.input_nc) if self.conditional else 3 )
             self.netDs = networks.init_net(netDs, opt.init_type, opt.init_gain, self.gpu_ids)
 
             #default chn = 128

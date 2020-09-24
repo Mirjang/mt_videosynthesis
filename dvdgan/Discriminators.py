@@ -137,10 +137,10 @@ class GBlock(nn.Module):
 
 class SpatialDiscriminator(nn.Module):
 
-    def __init__(self, chn=128, sigmoid = False, cgan = False):
+    def __init__(self, chn=128, sigmoid = False, input_nc = 3):
         super().__init__()
 
-        in_ch = 6 if cgan else 3
+        in_ch = input_nc
 
         self.pre_conv = nn.Sequential(SpectralNorm(nn.Conv2d(in_ch, 2*chn, 3, padding=1), ),
                                       nn.ReLU(),
