@@ -69,9 +69,9 @@ class Generator(nn.Module):
             noise_emb = x
 
         if self.hierar_flag is True:
-            y = self.affine_transfrom(noise_emb[0]) # B x (2 x ld x ch)
+            y = self.affine_transfrom(noise_emb[0]) # B x (ld x ch)
         else:
-            y = self.affine_transfrom(noise_emb) # B x (2 x ld x ch)
+            y = self.affine_transfrom(noise_emb) # B x (ld x ch)
 
         y = y.view(-1, 8 * self.ch, self.latent_dim, self.latent_dim) # B x ch x ld x ld
 

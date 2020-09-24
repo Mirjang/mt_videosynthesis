@@ -130,7 +130,7 @@ class UnconditionalModel(BaseModel):
         if hasattr(self.netG, "nFrames"):
             self.netG.nFrames = frame_length if frame_length>0 else self.nframes
  
-        self.predicted_video = self.netG(self.input)
+        self.predicted_video = self.netG(self.noise_input)
 
         if self.target_video.size(1) >= self.nframes: 
             self.prediction_target_video = torch.cat([self.predicted_video[:, :self.nframes,...].detach().cpu(), self.target_video.detach().cpu()], dim = 4)
