@@ -506,7 +506,7 @@ class DvdGanModel(BaseModel):
        
             #default chn = 128
 
-            netDs = DvdSpatialDiscriminator(chn = opt.ch_ds, sigmoid = not self.wgan, input_nc = (3 + self.input_nc) if self.conditional else 3 )
+            netDs = DvdSpatialDiscriminator(chn = opt.ch_ds, sigmoid = not self.wgan, input_nc = (3 + input_nc) if self.conditional else 3 )
             self.netDs = networks.init_net(netDs, opt.init_type, opt.init_gain, self.gpu_ids)
 
             #default chn = 128
