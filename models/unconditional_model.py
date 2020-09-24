@@ -67,7 +67,7 @@ class UnconditionalModel(BaseModel):
             self.loss_names += ['accDs_real','accDs_fake','accDt_real', 'accDt_fake']
         input_nc = opt.input_nc
 
-        self.netG = DvdGenerator(in_dim=self.in_dim, latent_dim=4, n_class = 1, ch = opt.ch_g, nframes = self.nframes, hierar_flag=False)
+        self.netG = DvdGenerator(in_dim=self.in_dim, latent_dim=4, n_class = 1, ch = opt.ch_g, n_frames = self.nframes, hierar_flag=False)
         self.netG = networks.init_net(netG, opt.init_type, opt.init_gain, self.gpu_ids)
 
         if self.isTrain:
