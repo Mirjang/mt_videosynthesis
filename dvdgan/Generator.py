@@ -107,7 +107,7 @@ class Generator(nn.Module):
             elif isinstance(conv, GResBlock):
                 condition = noise_emb
                 condition = condition.repeat(self.n_frames,1)
-                y = conv(y) # BT, C, W, H
+                y = conv(y, condition) # BT, C, W, H
 
         y = F.relu(y)
         y = self.colorize(y)
