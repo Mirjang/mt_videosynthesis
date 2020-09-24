@@ -206,7 +206,7 @@ class BaseModel():
                     # patch InstanceNorm checkpoints prior to 0.4
                     # for key in list(state_dict.keys()):  # need to copy keys here because we mutate in loop
                     #     self.__patch_instance_norm_state_dict(state_dict, net, key.split('.'))
-                    net.load_state_dict(state_dict, strict=True)
+                    net.module.load_state_dict(state_dict, strict=True)
                     setattr(self, name, net.to(self.device))
 
     # print network information
