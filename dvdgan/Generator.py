@@ -52,7 +52,11 @@ class Generator(nn.Module):
             ConvGRU(4 * ch, hidden_sizes=[4 * ch, 8 * ch, 4 * ch], kernel_sizes=[3, 5, 5], n_layers=3),
             # ConvGRU(4 * ch, hidden_sizes=[4 * ch, 4 * ch], kernel_sizes=[3, 5], n_layers=2),
             GResBlock(4 * ch, 4 * ch, n_class=in_dim, upsample_factor=1),
-            GResBlock(4 * ch, 2 * ch, n_class=in_dim)
+            GResBlock(4 * ch, 2 * ch, n_class=in_dim),
+            ConvGRU(2 * ch, hidden_sizes=[2 * ch, 4 * ch, 2 * ch], kernel_sizes=[3, 5, 5], n_layers=3),
+            # ConvGRU(4 * ch, hidden_sizes=[4 * ch, 4 * ch], kernel_sizes=[3, 5], n_layers=2),
+            GResBlock(2 * ch, 2 * ch, n_class=in_dim, upsample_factor=1),
+            GResBlock(2 * ch, 1 * ch, n_class=in_dim)
         ])
 
         # TODO impl ScaledCrossReplicaBatchNorm
