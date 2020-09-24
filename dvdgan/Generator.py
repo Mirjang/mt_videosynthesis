@@ -61,7 +61,7 @@ class Generator(nn.Module):
         self.colorize = SpectralNorm(nn.Conv2d(2 * ch, 3, kernel_size=(3, 3), padding=1))
 
 
-    def forward(self, x, class_id):
+    def forward(self, x):
 
         if self.hierar_flag is True:
             noise_emb = torch.split(x, self.in_dim, dim=1)
