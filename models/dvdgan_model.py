@@ -210,7 +210,6 @@ class Dvd3DConditionalGenerator(nn.Module):
         x = x * 2 - 1
         if len(x.shape) == 5: # B x T x 3 x W x H -> B x 3 x W x H (first frame)
             x = x[:,0,...]
-        print(len(self.encoder), len(self.rnn))
         encoder_list = [x]
         for layer in self.encoder: 
             encoder_list.append(layer(encoder_list[-1]))
@@ -225,7 +224,7 @@ class Dvd3DConditionalGenerator(nn.Module):
         else: #use encoded frame
             y = encoder_list[0] # B x ch x ld x ld
         
-        y = y.unsqueeze(2).expand(-1,-1, math.ceil(self.nframes / (2**depth)), -1, -1)#B x ch x T//D x ld x ld
+        y = y.unsqueeze(2).expand(-1,-1, math.ceil(self.nframes / (2**(self.depth-1))), -1, -1)#B x ch x T//D x ld x ld
 
         for depth, (rnn, conv) in enumerate(zip(self.rnn, self.conv)): 
             print(f"----Depth: {depth}----")
