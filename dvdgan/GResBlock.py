@@ -104,7 +104,6 @@ class GResBlock3D(nn.Module):
         self.downsample_factor = downsample_factor
         self.activation = activation
         self.bn = bn if downsample_factor is 1 else False
-        self.cbn = bn and n_class > 1
 
         if kernel_size is None:
             kernel_size = [3, 3]
@@ -119,10 +118,7 @@ class GResBlock3D(nn.Module):
         self.skip_proj = True
         self.conv_sc = weight_norm(nn.Conv3d(in_channel, out_channel, 1, 1, 0))
         if bn:
-            if self.cbn:
-                self.CBNorm1 = ConditionalNorm(in_channel, n_class) # TODO 2 x noise.size[1]
-                self.CBNorm2 = ConditionalNorm(out_channel, n_class)
-            else: 
+
                 self.norm1 = norm(in_channel, momentum=0.01)
                 self.norm2 = norm(out_channel,momentum=0.01)
 
@@ -130,20 +126,16 @@ class GResBlock3D(nn.Module):
 
         B, C, T, W, H = x.size()
         out = x
-
         if self.bn:
-            out = self.CBNorm1(out, condition) if self.cbn else self.norm1(out)
+            out = self.norm1(out)
 
         out = self.activation(out)
-
         if self.upsample_factor != 1:
             out = F.interpolate(out, scale_factor=self.upsample_factor)
-
         out = self.conv0(out)
 
         if self.bn:
-            out = out.view(B, -1,T * self.upsample_factor,  W * self.upsample_factor, H * self.upsample_factor)
-            out = self.CBNorm2(out, condition) if self.cbn else self.norm2(out)
+            out = self.norm2(out)
 
         out = self.activation(out)
         out = self.conv1(out)
@@ -162,13 +154,6 @@ class GResBlock3D(nn.Module):
             skip = x
 
         y = out + skip
-        y = y.view(
-            B, -1,
-            T * self.upsample_factor // self.downsample_factor,
-            W * self.upsample_factor // self.downsample_factor,
-            H * self.upsample_factor // self.downsample_factor
-        )
-
         return y
 
 if __name__ == "__main__":
