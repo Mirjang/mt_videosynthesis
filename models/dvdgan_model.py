@@ -238,9 +238,10 @@ class Dvd3DConditionalGenerator(nn.Module):
             y=torch.stack(frame_list, dim = 2)
             print(y.shape)
             y = conv(y) #B x ch x T//D x ld x ld -> B x ch x T//(D-1) x ld*2 x ld*2 ->
+        print(y.shape)
 
         y = F.relu(y)
-        B, C, T, W, H = y.size()
+        B, T, C, W, H = y.size()
         y = y.permute(0, 2, 1, 3, 4).view(-1, C, W, H)
 
         BT, C, W, H = y.size()
