@@ -231,7 +231,7 @@ class Dvd3DConditionalGenerator(nn.Module):
             print(f"----Depth: {depth}----")
             unrolls = math.ceil(self.nframes / (2**depth))
             frame_list = [encoder_list[depth]]
-            print(encoder_list[depth].shape)
+            print(encoder_list[depth].shape, y.shape)
             for i in range(unrolls): 
                 print(f"unroll {i}/{unrolls}")
 
