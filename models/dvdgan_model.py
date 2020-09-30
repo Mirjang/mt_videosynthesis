@@ -211,7 +211,7 @@ class Dvd3DConditionalGenerator(nn.Module):
         x = x * 2 - 1
         if len(x.shape) == 5: # B x T x 3 x W x H -> B x 3 x W x H (first frame)
             x = x[:,0,...]
-
+        print(len(self.encoder), len(self.rnn))
         encoder_list = [x]
         for layer in self.encoder: 
             encoder_list.append(layer(encoder_list[-1]))
