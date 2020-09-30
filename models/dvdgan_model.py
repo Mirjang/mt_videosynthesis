@@ -594,7 +594,7 @@ class DvdGanModel(BaseModel):
         elif opt.generator == "dvdgansimple":
             netG = GRUEncoderDecoderNet(self.nframes,input_nc ,ngf = opt.ch_g, hidden_dims=128, enc2hidden = True)
         elif opt.generator == "dvdgan3d":
-            netG = Dvd3DConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = opt.ch_g, latent_dim = 4, step_frames = 1, bn = not opt.no_bn, noise=not opt.no_noise, loss_ae=self.isTrain and self.opt.lambda_AUX>0)
+            netG = Dvd3DConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = opt.ch_g, latent_dim = 4, bn = not opt.no_bn, noise=not opt.no_noise, loss_ae=self.isTrain and self.opt.lambda_AUX>0)
 
         else:
             assert False, f"unknown generator model specified: {opt.generator}!"
