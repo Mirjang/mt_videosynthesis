@@ -236,9 +236,9 @@ class Dvd3DConditionalGenerator(nn.Module):
 
                 frame_list.append(rnn(y[:,:,i,:,:], frame_list[i - 1]))
             
-            print(torch.stack(frame_list, dim = 2).shape)
-            y = conv(torch.stack(frame_list, dim = 2)) #B x ch x T//D x ld x ld -> B x ch x T//(D-1) x ld*2 x ld*2 ->
-            print(frames.shape, y.shape)
+            y=torch.stack(frame_list, dim = 2)
+            print(y.shape)
+            y = conv(y) #B x ch x T//D x ld x ld -> B x ch x T//(D-1) x ld*2 x ld*2 ->
 
         y = F.relu(y)
         B, C, T, W, H = y.size()

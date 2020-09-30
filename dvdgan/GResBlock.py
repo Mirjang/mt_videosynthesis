@@ -106,7 +106,7 @@ class GResBlock3D(nn.Module):
         self.bn = bn if downsample_factor is 1 else False
 
         if kernel_size is None:
-            kernel_size = [3, 3]
+            kernel_size = 3
 
         self.conv0 = weight_norm(nn.Conv3d(in_channel, out_channel,
                                              kernel_size, stride, padding,
@@ -124,7 +124,6 @@ class GResBlock3D(nn.Module):
 
     def forward(self, x, condition=None):
        # B, C, T, W, H = x.size()
-        print("GRES: ", x.shape, self.norm1)
         out = x
         if self.bn:
             out = self.norm1(out)
