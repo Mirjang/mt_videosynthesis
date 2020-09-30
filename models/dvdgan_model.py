@@ -231,20 +231,20 @@ class Dvd3DConditionalGenerator(nn.Module):
         y = y.unsqueeze(2).expand(-1,-1, self.nframes//(2**self.depth)+1, -1, -1)#B x ch x T//D x ld x ld
 
         for depth, (rnn, conv) in enumerate(zip(self.rnn, self.conv)): 
+            print(f"----Depth: {depth}----")
             unrolls = self.nframes // (2**depth)
             frame_list = [encoder_list[depth]]
             for i in range(unrolls): 
                 frame_list.append(rnn(y[:,:,i,:,:].squeeze(1), frame_list[i - 1]))
 
-            frame_list = torch.stack(frame_list, dim = 2) #B x ch x T//D x ld x ld
-
-            y = conv(frame_list)
+            y = conv(torch.stack(frame_list, dim = 2)) #B x ch x T//D x ld x ld ->B x ch x T//(D-1) x ld*2 x ld*2 ->
+            print(frames.shape, y.shape)
 
         y = F.relu(y)
         B, C, T, W, H = y.size()
         y = y.permute(0, 2, 1, 3, 4).view(-1, C, W, H)
 
-        
+
         BT, C, W, H = y.size()
         # frame_0 = x[:, :3, ...].unsqueeze(1)
         # if self.loss_ae:
