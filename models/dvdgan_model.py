@@ -196,11 +196,11 @@ class Dvd3DConditionalGenerator(nn.Module):
         rnn = []
         conv = []
         for d in reversed(range(self.depth)): 
-            c = CH_RNN[d]
+            c = CH[d]
             rnn.append(ConvGRU(c * ch, hidden_sizes=[c * ch], kernel_sizes=3, n_layers=n_layers),)
             conv.append(nn.Sequential(
                 GResBlock3D(c, c, n_class=1, upsample_factor=2, bn = bn, norm = norm),
-                GResBlock3D(c, CH_RNN[d+1], n_class=1, upsample_factor=1, bn = bn, norm = norm),
+                GResBlock3D(c, CH[d+1], n_class=1, upsample_factor=1, bn = bn, norm = norm),
             ))
         self.rnn = nn.ModuleList(rnn)
         self.conv = nn.ModuleList(conv)
