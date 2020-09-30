@@ -182,7 +182,7 @@ class Dvd3DConditionalGenerator(nn.Module):
         self.depth = depth
 
         CH = [8,8,8,4,2]
-        CH = CH[:-depth]
+        CH = CH[-depth:]
 
         self.encoder = nn.ModuleList([
             nn.Sequential(
