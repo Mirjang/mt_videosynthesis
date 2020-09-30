@@ -1,7 +1,7 @@
 set -ex
 
 # GPU
-GPU_ID=2
+GPU_ID=0
 
 if [[ $(nvidia-smi | grep "^|    $GPU_ID    ") ]]; then
     read -p "GPU currently in use, continue? " -n 1 -r
@@ -12,14 +12,16 @@ if [[ $(nvidia-smi | grep "^|    $GPU_ID    ") ]]; then
     fi
 fi
 VISDOM_PORT=8197
-DATASETS_DIR=/mnt/raid/patrickradner/datasets/yt/
+DATASETS_DIR=/mnt/raid/patrickradner/datasets/#yt/
 CHECKPOINT_DIR=/mnt/raid/patrickradner/checkpoints
 RESULTS_DIR=/mnt/raid/patrickradner/results
 
 #DATASET=movingmnist
 # DATASET=cifar10
 # DATASET_MODE=dummy
-DATASET=river_relaxing
+DATASET=UCF101
+#DATASET=river_relaxing
+
 DATASET_MODE=video
 
 # models
