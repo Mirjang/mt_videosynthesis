@@ -245,7 +245,7 @@ class Dvd3DConditionalGenerator(nn.Module):
         y = y.permute(0, 2, 1, 3, 4).contiguous().view(-1, C, W, H)
 
         BT, C, W, H = y.size()
-        # frame_0 = x[:, :3, ...].unsqueeze(1)
+        frame_0 = x[:, :3, ...].unsqueeze(1)
         # if self.loss_ae:
         #     frame_0 = 0
         #     up = 0
