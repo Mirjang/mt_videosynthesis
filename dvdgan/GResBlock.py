@@ -36,10 +36,6 @@ class GResBlock(nn.Module):
         self.skip_proj = True
         self.conv_sc = weight_norm(nn.Conv2d(in_channel, out_channel, 1, 1, 0))
 
-        # if in_channel != out_channel or upsample_factor or downsample_factor:
-        #     self.conv_sc = SpectralNorm(nn.Conv2d(in_channel, out_channel, 1, 1, 0))
-        #     self.skip_proj = True
-
         if bn:
             if self.cbn:
                 self.CBNorm1 = ConditionalNorm(in_channel, n_class) # TODO 2 x noise.size[1]
@@ -122,11 +118,6 @@ class GResBlock3D(nn.Module):
 
         self.skip_proj = True
         self.conv_sc = weight_norm(nn.Conv3d(in_channel, out_channel, 1, 1, 0))
-
-        # if in_channel != out_channel or upsample_factor or downsample_factor:
-        #     self.conv_sc = SpectralNorm(nn.Conv2d(in_channel, out_channel, 1, 1, 0))
-        #     self.skip_proj = True
-
         if bn:
             if self.cbn:
                 self.CBNorm1 = ConditionalNorm(in_channel, n_class) # TODO 2 x noise.size[1]
