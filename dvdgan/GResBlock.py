@@ -124,7 +124,7 @@ class GResBlock3D(nn.Module):
 
     def forward(self, x, condition=None):
        # B, C, T, W, H = x.size()
-        print("GRES: ", x.shape)
+        print("GRES: ", x.shape, self.norm1)
         out = x
         if self.bn:
             out = self.norm1(out)
