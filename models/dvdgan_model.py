@@ -194,7 +194,7 @@ class Dvd3DConditionalGenerator(nn.Module):
         n_layers = 1
         rnn = []
         conv = []
-        for d in reversed(range(self.depth)): 
+        for d in range(self.depth): 
             c = CH[d]
             print(c)
             rnn.append(ConvGRU(c * ch, hidden_sizes=[c * ch], kernel_sizes=3, n_layers=n_layers),)
