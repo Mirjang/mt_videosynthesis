@@ -228,8 +228,7 @@ class Dvd3DConditionalGenerator(nn.Module):
 
         for depth, (rnn, conv) in enumerate(zip(self.rnn, self.conv)): 
             unrolls = math.ceil(self.nframes / (2**(self.depth - depth)))
-            print(f"----Depth: {depth} Unrolls: {unrolls} ----")
-
+        #    print(f"----Depth: {depth} Unrolls: {unrolls} ----")
             frame_list = [encoder_list[depth]]
             for i in range(unrolls): 
                 # print(y[:,:,i,:,:].shape, frame_list[i - 1].shape)
@@ -237,7 +236,7 @@ class Dvd3DConditionalGenerator(nn.Module):
             
             y=torch.stack(frame_list, dim = 2)
             y = conv(y) #B x ch x T//D x ld x ld -> B x ch x T//(D-1) x ld*2 x ld*2 ->
-            print(y.shape)
+      #      print(y.shape)
 
         y = y[:,:,:self.nframes,...]
         y = F.relu(y)
@@ -264,7 +263,7 @@ class Dvd3DConditionalGenerator(nn.Module):
         #     frame_0 = frame_0.unsqueeze(1)
 
         y = self.colorize(y)
-        y = y.view(-1, self.nframes,3, W, H) # B, T/S, C*S, W, H
+        y = y.view(-1, self.nframes,3, W, H).contiguous() # B, T/S, C*S, W, H
         y = torch.tanh(y)
         y = torch.cat([frame_0, y],  dim = 1)
         y = (y+1) / 2.0 #[-1,1] -> [0,1] for vis
@@ -287,12 +286,12 @@ class DvdStyleConditionalGenerator(nn.Module):
                 nn.Conv2d(input_nc, ch, kernel_size=(3, 3), padding=1),
                 GResBlock(ch, ch*2,n_class=1, downsample_factor = 2, bn = bn, weight_norm=None),
                 ),
- #           GResBlock(2*ch, 4*ch, n_class=1, downsample_factor = 2, bn = bn),
+        #    GResBlock(2*ch, 4*ch, n_class=1, downsample_factor = 2, bn = bn),
             #GResBlock(2*ch, 4*ch, n_class=1, downsample_factor = 2, bn = bn),
             GResBlock(ch*2, ch*4,n_class=1, downsample_factor = 2, bn = bn, weight_norm=None),
             GResBlock(ch*4, ch*8,n_class=1, downsample_factor = 2, bn = bn, weight_norm=None),
             GResBlock(ch*8, ch*8,n_class=1, downsample_factor = 2, bn = bn, weight_norm=None),
-#            SpectralNorm(nn.Conv2d(8*ch, 8*ch, kernel_size=1)),
+        #    SpectralNorm(nn.Conv2d(8*ch, 8*ch, kernel_size=1)),
         ])
         self.encoder2style = nn.Sequential(
                 GResBlock(ch*8, ch*8,n_class=1, downsample_factor = 2, bn = bn, weight_norm=None),
@@ -609,7 +608,6 @@ class DvdGanModel(BaseModel):
             assert self.nframes > self.ndsframes+1, "number of frames sampled for disc should be leq to number of total frames generated (length-1)"
        
             #default chn = 128
-
             netDs = DvdSpatialDiscriminator(chn = opt.ch_ds, sigmoid = not self.wgan, input_nc = (3 + input_nc) if self.conditional else 3 )
             self.netDs = networks.init_net(netDs, opt.init_type, opt.init_gain, self.gpu_ids)
 
@@ -666,8 +664,6 @@ class DvdGanModel(BaseModel):
             self.netG.nFrames = frame_length if frame_length>0 else self.nframes
  
         self.predicted_video = self.netG(self.input)
-
-        
         
         if self.target_video.size(1) >= self.nframes: 
             self.prediction_target_video = torch.cat([self.predicted_video[:, :self.nframes,...].detach().cpu(), self.target_video.detach().cpu()], dim = 4)
