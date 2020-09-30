@@ -190,7 +190,6 @@ class Dvd3DConditionalGenerator(nn.Module):
                 GResBlock(ch*CH[-1], ch*CH[-2],n_class=1, downsample_factor = 2, bn = bn),
                 ),
             *[GResBlock(ch*CH[-d-1], ch*CH[-d-2],n_class=1, downsample_factor = 2, bn = bn) for d in range(1,self.depth)]
-         
         ])
         n_layers = 1
         rnn = []
@@ -233,6 +232,8 @@ class Dvd3DConditionalGenerator(nn.Module):
             unrolls = math.ceil(self.nframes / (2**depth))
             frame_list = [encoder_list[depth]]
             for i in range(unrolls): 
+                print(f"unroll {i}/{unrolls}")
+
                 frame_list.append(rnn(y[:,:,i,:,:].squeeze(1), frame_list[i - 1]))
 
             y = conv(torch.stack(frame_list, dim = 2)) #B x ch x T//D x ld x ld -> B x ch x T//(D-1) x ld*2 x ld*2 ->
@@ -241,7 +242,6 @@ class Dvd3DConditionalGenerator(nn.Module):
         y = F.relu(y)
         B, C, T, W, H = y.size()
         y = y.permute(0, 2, 1, 3, 4).view(-1, C, W, H)
-
 
         BT, C, W, H = y.size()
         # frame_0 = x[:, :3, ...].unsqueeze(1)
