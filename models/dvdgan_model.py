@@ -181,8 +181,8 @@ class Dvd3DConditionalGenerator(nn.Module):
         self.criterionAE = torch.nn.MSELoss()
         self.depth = depth
 
-        CH = [8,8,8,4,2]
-        CH = CH[-depth:]
+        CH = [8,8,8,4,2,1]
+        CH = CH[-depth+1:]
 
         self.encoder = nn.ModuleList([
             nn.Sequential(
