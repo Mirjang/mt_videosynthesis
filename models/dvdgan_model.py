@@ -263,11 +263,10 @@ class Dvd3DConditionalGenerator(nn.Module):
         #     frame_0 = frame_0.unsqueeze(1)
 
         y = self.colorize(y)
-        y = y.view(-1, self.nframes,3, W, H).contiguous() # B, T/S, C*S, W, H
+        y = y.view(-1, self.nframes,3, W, H) # B, T/S, C*S, W, H
         y = torch.tanh(y)
         y = torch.cat([frame_0, y],  dim = 1)
         y = (y+1) / 2.0 #[-1,1] -> [0,1] for vis
-        print("FINAL:"  , y.shape)
         return y
 
 class DvdStyleConditionalGenerator(nn.Module):
