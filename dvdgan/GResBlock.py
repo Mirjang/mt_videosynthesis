@@ -120,8 +120,8 @@ class GResBlock3D(nn.Module):
         self.conv_sc = weight_norm(nn.Conv3d(in_channel, out_channel, 1, 1, 0))
         if bn:
             if self.cbn:
-                self.norm1 = ConditionalNorm(in_channel, n_class) # TODO 2 x noise.size[1]
-                self.norm2 = ConditionalNorm(out_channel, n_class)
+                self.CBNorm1 = ConditionalNorm(in_channel, n_class) # TODO 2 x noise.size[1]
+                self.CBNorm2 = ConditionalNorm(out_channel, n_class)
             else: 
                 self.norm1 = norm(in_channel, momentum=0.01)
                 self.norm2 = norm(out_channel,momentum=0.01)
@@ -132,7 +132,7 @@ class GResBlock3D(nn.Module):
         out = x
 
         if self.bn:
-            out = self.norm1(out, condition) if self.cbn else self.CBNorm1(out)
+            out = self.CBNorm1(out, condition) if self.cbn else self.norm1(out)
 
         out = self.activation(out)
 
@@ -143,7 +143,7 @@ class GResBlock3D(nn.Module):
 
         if self.bn:
             out = out.view(B, -1,T * self.upsample_factor,  W * self.upsample_factor, H * self.upsample_factor)
-            out = self.norm2(out, condition) if self.cbn else self.CBNorm2(out)
+            out = self.CBNorm2(out, condition) if self.cbn else self.norm2(out)
 
         out = self.activation(out)
         out = self.conv1(out)
