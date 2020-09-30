@@ -182,14 +182,14 @@ class Dvd3DConditionalGenerator(nn.Module):
         self.depth = depth
 
         CH = [8,8,8,4,2,1]
-        CH = CH[-depth+1:]
+        CH = CH[-depth-1:]
 
         self.encoder = nn.ModuleList([
             nn.Sequential(
                 SpectralNorm(nn.Conv2d(input_nc, ch, kernel_size=(3, 3), padding=1)),
-                GResBlock(ch, ch*CH[-1],n_class=1, downsample_factor = 2, bn = bn),
+                GResBlock(ch*CH[-1], ch*CH[-2],n_class=1, downsample_factor = 2, bn = bn),
                 ),
-            *[GResBlock(ch*CH[d], ch*CH[d-1],n_class=1, downsample_factor = 2, bn = bn) for d in reversed(range(1,self.depth))]
+            *[GResBlock(ch*CH[d], ch*CH[d-1],n_class=1, downsample_factor = 2, bn = bn) for d in reversed(range(2,self.depth))]
          
         ])
         n_layers = 1
