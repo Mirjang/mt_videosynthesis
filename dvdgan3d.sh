@@ -35,7 +35,11 @@ GENERATOR=dvdgan3d
 #NAME=${DATASET}_${MODEL}_${GENERATOR}_${RESOLUTION}_noise_cgan_aux_seg
 NAME=${DATASET}_${MODEL}_${GENERATOR}_${RESOLUTION}_noise_cgan_noaux_seg_g16s16t32_noprepool
 git add -A 
-git commit -m $NAME
+git status | grep modified
+if [ $? -eq 0 ]
+then
+    git commit -m $NAME
+fi
 DISPNAME=${NAME}
 # vid settings
 SKIP=1
