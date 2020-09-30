@@ -1,7 +1,7 @@
 set -ex
 
 # GPU
-GPU_ID=-1
+GPU_ID=3
 
 if [[ $(nvidia-smi | grep "^|    $GPU_ID    ") ]]; then
     read -p "GPU currently in use, continue? " -n 1 -r
@@ -30,7 +30,7 @@ BATCHSIZE=2
 SUB_BATCH=2
 RESOLUTION=128
 FPS=25
-GENERATOR=dvdgan
+GENERATOR=dvdgan3d
 
 #NAME=${DATASET}_${MODEL}_${GENERATOR}_${RESOLUTION}_noise_cgan_aux_seg
 NAME=${DATASET}_${MODEL}_${GENERATOR}_${RESOLUTION}_noise_cgan_noaux_seg_g16s16t32_noprepool
