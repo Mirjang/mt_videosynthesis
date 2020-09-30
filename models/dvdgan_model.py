@@ -227,7 +227,7 @@ class Dvd3DConditionalGenerator(nn.Module):
         y = y.unsqueeze(2).expand(-1,-1, math.ceil(self.nframes / (2**(self.depth-1))), -1, -1)#B x ch x T//D x ld x ld
 
         for depth, (rnn, conv) in enumerate(zip(self.rnn, self.conv)): 
-            unrolls = math.ceil(self.nframes / (2**(self.depth - depth - 1)))
+            unrolls = math.ceil(self.nframes / (2**(self.depth - depth)))
             print(f"----Depth: {depth} Unrolls: {unrolls} ----")
 
             frame_list = [encoder_list[depth]]
@@ -240,9 +240,10 @@ class Dvd3DConditionalGenerator(nn.Module):
             y = conv(y) #B x ch x T//D x ld x ld -> B x ch x T//(D-1) x ld*2 x ld*2 ->
         print(y.shape)
 
+        y = y[:,:,self.nframes,...]
         y = F.relu(y)
-        B, T, C, W, H = y.size()
-        y = y.permute(0, 2, 1, 3, 4).view(-1, C, W, H)
+        B, C, T, W, H = y.size()
+        y = y.permute(0, 2, 1, 3, 4).contiguous().view(-1, C, W, H)
 
         BT, C, W, H = y.size()
         # frame_0 = x[:, :3, ...].unsqueeze(1)
