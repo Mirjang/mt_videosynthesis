@@ -120,21 +120,19 @@ class GResBlock3D(nn.Module):
         self.conv_sc = weight_norm(nn.Conv3d(in_channel, out_channel, 1, 1, 0))
         if bn:
             if self.cbn:
-                self.CBNorm1 = ConditionalNorm(in_channel, n_class) # TODO 2 x noise.size[1]
-                self.CBNorm2 = ConditionalNorm(out_channel, n_class)
+                self.norm1 = ConditionalNorm(in_channel, n_class) # TODO 2 x noise.size[1]
+                self.norm2 = ConditionalNorm(out_channel, n_class)
             else: 
-                self.CBNorm1 = norm(in_channel, momentum=0.01)
-                self.CBNorm2 = norm(out_channel,momentum=0.01)
+                self.norm1 = norm(in_channel, momentum=0.01)
+                self.norm2 = norm(out_channel,momentum=0.01)
 
     def forward(self, x, condition=None):
 
-        # The time dimension is combined with the batch dimension here, so each frame proceeds
-        # through the blocks independently
-        BT, C, W, H = x.size()
+        B, C, T, W, H = x.size()
         out = x
 
         if self.bn:
-            out = self.CBNorm1(out, condition) if self.cbn else self.CBNorm1(out)
+            out = self.norm1(out, condition) if self.cbn else self.CBNorm1(out)
 
         out = self.activation(out)
 
@@ -144,8 +142,8 @@ class GResBlock3D(nn.Module):
         out = self.conv0(out)
 
         if self.bn:
-            out = out.view(BT, -1, W * self.upsample_factor, H * self.upsample_factor)
-            out = self.CBNorm2(out, condition) if self.cbn else self.CBNorm2(out)
+            out = out.view(B, -1,T * self.upsample_factor,  W * self.upsample_factor, H * self.upsample_factor)
+            out = self.norm2(out, condition) if self.cbn else self.CBNorm2(out)
 
         out = self.activation(out)
         out = self.conv1(out)
@@ -165,7 +163,8 @@ class GResBlock3D(nn.Module):
 
         y = out + skip
         y = y.view(
-            BT, -1,
+            B, -1,
+            T * self.upsample_factor // self.downsample_factor,
             W * self.upsample_factor // self.downsample_factor,
             H * self.upsample_factor // self.downsample_factor
         )
