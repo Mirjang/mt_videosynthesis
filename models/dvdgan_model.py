@@ -172,11 +172,9 @@ class DvdConditionalGenerator(nn.Module):
 class Dvd3DConditionalGenerator(nn.Module):
     def __init__(self, input_nc = 3, latent_dim=4, depth = 4, ch=8, nframes=48, bn=True, trajgru = False, norm = nn.BatchNorm3d, loss_ae = False, noise = False):
         super().__init__()
-        self.step_frames = step_frames
         self.latent_dim = latent_dim
         self.ch = ch
         self.nframes = nframes -1 # first frame is just input frame
-        self.n_steps = math.ceil(self.nframes / step_frames)
         self.loss_ae = loss_ae
         self.L_aux = 0
         self.noise = noise
@@ -232,7 +230,7 @@ class Dvd3DConditionalGenerator(nn.Module):
 
         for depth, (rnn, conv) in enumerate(zip(self.rnn, self.conv)): 
             print(f"----Depth: {depth}----")
-            unrolls = self.nframes // (2**depth)
+            unrolls = math.ceil(self.nframes / (2**depth))
             frame_list = [encoder_list[depth]]
             for i in range(unrolls): 
                 frame_list.append(rnn(y[:,:,i,:,:].squeeze(1), frame_list[i - 1]))
