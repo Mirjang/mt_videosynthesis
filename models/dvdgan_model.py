@@ -189,7 +189,7 @@ class Dvd3DConditionalGenerator(nn.Module):
                 SpectralNorm(nn.Conv2d(input_nc, ch, kernel_size=(3, 3), padding=1)),
                 GResBlock(ch, ch*CH[-1],n_class=1, downsample_factor = 2, bn = bn),
                 ),
-            [GResBlock(ch*CH[d], ch*CH[d-1],n_class=1, downsample_factor = 2, bn = bn) for d in reversed(range(1,self.depth))]
+            *[GResBlock(ch*CH[d], ch*CH[d-1],n_class=1, downsample_factor = 2, bn = bn) for d in reversed(range(1,self.depth))]
          
         ])
         n_layers = 1
