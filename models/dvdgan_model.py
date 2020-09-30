@@ -196,7 +196,6 @@ class Dvd3DConditionalGenerator(nn.Module):
         conv = []
         for d in range(self.depth): 
             c = CH[d]
-            print(c)
             rnn.append(ConvGRU(c * ch, hidden_sizes=[c * ch], kernel_sizes=3, n_layers=n_layers),)
             conv.append(nn.Sequential(
                 GResBlock3D(c, c, n_class=1, upsample_factor=2, bn = bn, norm = norm),
@@ -228,6 +227,7 @@ class Dvd3DConditionalGenerator(nn.Module):
         y = y.unsqueeze(2).expand(-1,-1, math.ceil(self.nframes / (2**(self.depth-1))), -1, -1)#B x ch x T//D x ld x ld
 
         for depth, (rnn, conv) in enumerate(zip(self.rnn, self.conv)): 
+            depth = self.depth - depth - 1
             print(f"----Depth: {depth}----")
             unrolls = math.ceil(self.nframes / (2**depth))
             frame_list = [encoder_list[depth]]
