@@ -123,8 +123,7 @@ class GResBlock3D(nn.Module):
                 self.norm2 = norm(out_channel,momentum=0.01)
 
     def forward(self, x, condition=None):
-
-        B, C, T, W, H = x.size()
+       # B, C, T, W, H = x.size()
         out = x
         if self.bn:
             out = self.norm1(out)
