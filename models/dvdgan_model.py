@@ -227,13 +227,12 @@ class Dvd3DConditionalGenerator(nn.Module):
         y = y.unsqueeze(2).expand(-1,-1, math.ceil(self.nframes / (2**(self.depth-1))), -1, -1)#B x ch x T//D x ld x ld
 
         for depth, (rnn, conv) in enumerate(zip(self.rnn, self.conv)): 
-            print(f"----Depth: {depth}----")
             unrolls = math.ceil(self.nframes / (2**(self.depth - depth - 1)))
+            print(f"----Depth: {depth} Unrolls: {unrolls} ----")
+
             frame_list = [encoder_list[depth]]
             for i in range(unrolls): 
-                print(f"unroll {i}/{unrolls}")
-                print(y[:,:,i,:,:].shape, frame_list[i - 1].shape)
-
+                # print(y[:,:,i,:,:].shape, frame_list[i - 1].shape)
                 frame_list.append(rnn(y[:,:,i,:,:], frame_list[i - 1]))
             
             y=torch.stack(frame_list, dim = 2)
