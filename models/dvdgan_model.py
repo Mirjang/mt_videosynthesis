@@ -577,7 +577,7 @@ class DvdGanModel(BaseModel):
             self.loss_names += ['accDs_real','accDs_fake','accDt_real', 'accDt_fake']
         else: 
             self.loss_names += ['Ds_real', 'Ds_fake', 'Dt_real', 'Dt_fake', 'Ds_GP', 'Dt_GP']
-        latent_dim = 2**(int(math.log(opt.resolution, 2)) - 5)
+        latent_dim = 2**(int(math.log(opt.resolution, 2)) - 4)
         input_nc = opt.input_nc + (opt.num_segmentation_classes if opt.use_segmentation else 0)
         if opt.generator == "dvdgan":
             netG = DvdConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = opt.ch_g, latent_dim = latent_dim, step_frames = 1, bn = not opt.no_bn, noise=not opt.no_noise, loss_ae=self.isTrain and self.opt.lambda_AUX>0)
