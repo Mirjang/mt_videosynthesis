@@ -346,6 +346,7 @@ class DvdStyleConditionalGenerator(nn.Module):
         else: #use encoded frame
             y = encoder_list[0] # B x ch x ld x ld
         
+        print(y.shape)
         style = self.encoder2style(y)
         style = style.unsqueeze(1).expand(-1, self.nframes, -1).contiguous().view(x.size(0)*self.nframes, -1) # BT x style
 
