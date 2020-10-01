@@ -270,7 +270,7 @@ class Dvd3DConditionalGenerator(nn.Module):
         return y
 
 class DvdStyleConditionalGenerator(nn.Module):
-    def __init__(self, input_nc = 3, latent_dim=4,style_dim = 256, ch=8, nframes=48, step_frames = 1, trajgru = False, noise = False):
+    def __init__(self, input_nc = 3, latent_dim=2,style_dim = 256, ch=8, nframes=48, step_frames = 1, trajgru = False, noise = False):
         super().__init__()
         self.step_frames = step_frames
         self.latent_dim = latent_dim
@@ -296,7 +296,7 @@ class DvdStyleConditionalGenerator(nn.Module):
                 GResBlock(ch*8, ch*8,n_class=1, downsample_factor = 2, bn = bn, weight_norm=None),
                 GResBlock(ch*8, ch*4,n_class=1, downsample_factor = 2, bn = bn, weight_norm=None),
                 nn.Flatten(),
-                nn.Linear(ch*4*2*2, style_dim),
+                nn.Linear(ch*4*latent_dim*latent_dim, style_dim),
                 nn.Sigmoid(),
             )
         n_layers = 1
@@ -576,23 +576,24 @@ class DvdGanModel(BaseModel):
             self.loss_names += ['accDs_real','accDs_fake','accDt_real', 'accDt_fake']
         else: 
             self.loss_names += ['Ds_real', 'Ds_fake', 'Dt_real', 'Dt_fake', 'Ds_GP', 'Dt_GP']
+        latent_dim = 2**(int(log(opt.resolution, 2)) - 5)
         input_nc = opt.input_nc + (opt.num_segmentation_classes if opt.use_segmentation else 0)
         if opt.generator == "dvdgan":
-            netG = DvdConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = opt.ch_g, latent_dim = 4, step_frames = 1, bn = not opt.no_bn, noise=not opt.no_noise, loss_ae=self.isTrain and self.opt.lambda_AUX>0)
+            netG = DvdConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = opt.ch_g, latent_dim = latent_dim, step_frames = 1, bn = not opt.no_bn, noise=not opt.no_noise, loss_ae=self.isTrain and self.opt.lambda_AUX>0)
             #netG = DvdConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = 16, latent_dim = 8, step_frames = 1, bn = True, norm = nn.InstanceNorm2d,)
 
             #netG = DVDGan(self.nframes,input_nc ,ngf = 32, latent_nc=120,fp_levels = 3, res = self.opt.resolution, )
         elif opt.generator == "trajgru": 
-            netG = DvdConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = opt.ch_g, latent_dim = 4, step_frames = 1, bn = not opt.no_bn, noise=not opt.no_noise, loss_ae=self.isTrain and self.opt.lambda_AUX>0, trajgru=True)
+            netG = DvdConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = opt.ch_g, latent_dim = latent_dim, step_frames = 1, bn = not opt.no_bn, noise=not opt.no_noise, loss_ae=self.isTrain and self.opt.lambda_AUX>0, trajgru=True)
             # netG = DvdConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = 16, latent_dim = 8, step_frames = 1, bn = True, norm = nn.InstanceNorm2d, trajgru=True)
         elif opt.generator == "style": 
-            netG = DvdStyleConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = opt.ch_g, latent_dim = 4, step_frames = 1, noise = opt.style_noise)
+            netG = DvdStyleConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = opt.ch_g, latent_dim = latent_dim, step_frames = 1, noise = opt.style_noise)
         elif opt.generator == "styletraj": 
-            netG = DvdStyleConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = opt.ch_g, latent_dim = 4, step_frames = 1, noise = opt.style_noise, trajgru=True)
+            netG = DvdStyleConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = opt.ch_g, latent_dim = latent_dim, step_frames = 1, noise = opt.style_noise, trajgru=True)
         elif opt.generator == "dvdgansimple":
             netG = GRUEncoderDecoderNet(self.nframes,input_nc ,ngf = opt.ch_g, hidden_dims=128, enc2hidden = True)
         elif opt.generator == "dvdgan3d":
-            netG = Dvd3DConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = opt.ch_g, latent_dim = 4, bn = not opt.no_bn, noise=not opt.no_noise, loss_ae=self.isTrain and self.opt.lambda_AUX>0)
+            netG = Dvd3DConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = opt.ch_g, latent_dim = latent_dim, bn = not opt.no_bn, noise=not opt.no_noise, loss_ae=self.isTrain and self.opt.lambda_AUX>0)
 
         else:
             assert False, f"unknown generator model specified: {opt.generator}!"
