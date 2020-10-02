@@ -560,6 +560,8 @@ class DvdGanModel(BaseModel):
         self.visual_names = ["prediction_target_video"]#, "activity_diag_plt"]#, "lossperframe_plt"]
         for i in range(self.num_display_frames):
             self.visual_names += [f"frame_{i}"]
+        if self.opt.masked_update: 
+            self.visual_names +=["mask"]
         # specify the training losses you want to print out. The program will call base_model.get_current_losses
         self.loss_names = ['Gs', 'Gt', 'Ds', 'Dt']
         # specify the models you want to save to the disk. The program will call base_model.save_networks and base_model.load_networks
@@ -657,7 +659,7 @@ class DvdGanModel(BaseModel):
         if self.opt.use_segmentation: 
             self.input = torch.cat([self.input, input["SEGMENTATION"].to(self.device)], dim = 1)
         if self.opt.masked_update: 
-            self.mask = input["SEGMENTATION"].to(self.device)
+            self.mask = input["SEGMENTATION"].to(self.device).expand(-1, 3, -1, -1)
        # self.noise_input = torch.empty((self.target_video.shape[0], self.in_dim)).normal_(mean=0, std=1)
 
         _, T, *_ = self.target_video.shape
