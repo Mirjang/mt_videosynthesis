@@ -656,6 +656,8 @@ class DvdGanModel(BaseModel):
         self.input = self.target_video[:,0,...]#first frame
         if self.opt.use_segmentation: 
             self.input = torch.cat([self.input, input["SEGMENTATION"].to(self.device)], dim = 1)
+        if self.opt.masked_update: 
+            self.mask = input["SEGMENTATION"].to(self.device)
        # self.noise_input = torch.empty((self.target_video.shape[0], self.in_dim)).normal_(mean=0, std=1)
 
         _, T, *_ = self.target_video.shape
@@ -666,7 +668,10 @@ class DvdGanModel(BaseModel):
             self.netG.nFrames = frame_length if frame_length>0 else self.nframes
  
         self.predicted_video = self.netG(self.input)
-        
+        if self.opt.masked_update: 
+            B,T,C,W,H = self.predicted_video.shape()
+            self.predicted_video = torch.where(self.mask.long().expand(B,T,C,W,H),self.predicted_video, self.target_video)
+
         if self.target_video.size(1) >= self.nframes: 
             self.prediction_target_video = torch.cat([self.predicted_video[:, :self.nframes,...].detach().cpu(), self.target_video.detach().cpu()], dim = 4)
         else: 

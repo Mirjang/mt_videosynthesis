@@ -151,7 +151,7 @@ class VideoDataset(BaseDataset):
             ])
         else: 
             self.augmentation = None
-        self.use_segmentation = opt.use_segmentation
+        self.use_segmentation = opt.use_segmentation or opt.masked_update
         self.seg_eps = opt.motion_seg_eps
         # if self.use_segmentation: 
         #     import warnings
