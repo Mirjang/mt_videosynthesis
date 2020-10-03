@@ -672,7 +672,7 @@ class DvdGanModel(BaseModel):
         self.predicted_video = self.netG(self.input)
         if self.opt.masked_update: 
             B,T,C,W,H = self.predicted_video.size()
-            self.predicted_video = torch.where(self.mask.byte().unsqueeze(1).expand(B,T,C,W,H),self.predicted_video, self.target_video)
+            self.predicted_video = torch.where(self.mask.byte().unsqueeze(1).expand(B,T,C,W,H),self.predicted_video, self.target_video[:,:1,...].expand(B,T,C,W,H))
 
         if self.target_video.size(1) >= self.nframes: 
             self.prediction_target_video = torch.cat([self.predicted_video[:, :self.nframes,...].detach().cpu(), self.target_video.detach().cpu()], dim = 4)
