@@ -1,7 +1,7 @@
 {
     "python.pythonPath": "/home/patrickradner/anaconda3/bin/python",
     "python.jediEnabled": false,
-    "python.languageServer": "Microsoft",
+    "python.languageServer": "Pylance",
   //  "python.analysis.downloadChannel": "beta",
     "files.eol": "\n",
     "files.exclude": {
