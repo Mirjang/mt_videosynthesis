@@ -25,7 +25,7 @@ from stylegan2.model import StyledConv
 #import torch.nn.utils.spectral_norm as SpectralNorm
 
 class DvdConditionalGenerator(nn.Module):
-    def __init__(self, input_nc = 3, latent_dim=4, ch=8, nframes=48, step_frames = 1, bn=True, trajgru = False, norm = nn.BatchNorm2d, loss_ae = False, noise = False):
+    def __init__(self, input_nc = 3, latent_dim=4, ch=8,n_grulayers=1,  nframes=48, step_frames = 1, bn=True, trajgru = False, norm = nn.BatchNorm2d, loss_ae = False, noise = False):
         super().__init__()
         self.step_frames = step_frames
         self.latent_dim = latent_dim
@@ -37,6 +37,9 @@ class DvdConditionalGenerator(nn.Module):
         self.noise = noise
         self.criterionAE = torch.nn.MSELoss()
 
+        gru_kernels = [3,5,3][:n_grulayers]
+        gru_hiddens = np.array([1,2,1])[:n_grulayers]
+        
         self.encoder = nn.ModuleList([
             nn.Sequential(
                 SpectralNorm(nn.Conv2d(input_nc, ch, kernel_size=(3, 3), padding=1)),
@@ -49,22 +52,21 @@ class DvdConditionalGenerator(nn.Module):
             GResBlock(ch*8, ch*8,n_class=1, downsample_factor = 2, bn = bn),
         #    SpectralNorm(nn.Conv2d(8*ch, 8*ch, kernel_size=1)),
         ])
-        n_layers = 1
         self.conv = nn.ModuleList([
             #ConvGRU(8 * ch, hidden_sizes=[8 * ch, 16 * ch, 8 * ch], kernel_sizes=[3, 5, 3], n_layers=3),
-            ConvGRU(8 * ch, hidden_sizes=[8 * ch], kernel_sizes=3, n_layers=1),
+            ConvGRU(8 * ch, hidden_sizes=8 * ch * gru_hiddens, kernel_sizes=gru_kernels, n_layers=n_grulayers),
             GResBlock(8 * ch, 8 * ch, n_class=1, upsample_factor=2, bn = bn, norm = norm),
             GResBlock(8 * ch, 8 * ch, n_class=1, upsample_factor=1, bn = bn, norm = norm),
             #ConvGRU(8 * ch, hidden_sizes=[8 * ch, 16 * ch, 8 * ch], kernel_sizes=[3, 5, 3], n_layers=3),
-            ConvGRU(8 * ch, hidden_sizes=[8 * ch], kernel_sizes=3, n_layers=n_layers, trajgru=trajgru),
+            ConvGRU(8 * ch, hidden_sizes=8 * ch * gru_hiddens, kernel_sizes=gru_kernels, n_layers=n_grulayers, trajgru=trajgru),
             GResBlock(8 * ch, 8 * ch, n_class=1, upsample_factor=2, bn = bn, norm = norm),
             GResBlock(8 * ch, 4 * ch, n_class=1, upsample_factor=1, bn = bn, norm = norm),
             #ConvGRU(8 * ch, hidden_sizes=[8 * ch, 16 * ch, 8 * ch], kernel_sizes=[3, 5, 3], n_layers=3),
-            ConvGRU(4 * ch, hidden_sizes=[4 * ch], kernel_sizes=3, n_layers=n_layers, trajgru=trajgru),
+            ConvGRU(4 * ch, hidden_sizes=4 * ch * gru_hiddens, kernel_sizes=gru_kernels, n_layers=n_grulayers, trajgru=trajgru),
             GResBlock(4 * ch, 4 * ch, n_class=1, upsample_factor=2, bn = bn, norm = norm),
             GResBlock(4 * ch, 2 * ch, n_class=1, upsample_factor=1, bn = bn, norm = norm),
             #ConvGRU(4 * ch, hidden_sizes=[4 * ch, 8 * ch, 4 * ch], kernel_sizes=[3, 5, 5], n_layers=3),
-            ConvGRU(2 * ch, hidden_sizes=[2 * ch], kernel_sizes=3, n_layers=n_layers, trajgru=trajgru),
+            ConvGRU(2 * ch, hidden_sizes=2 * ch * gru_hiddens, kernel_sizes=gru_kernels, n_layers=n_grulayers, trajgru=trajgru),
             GResBlock(2 * ch, 2 * ch, n_class=1, upsample_factor=2, bn = bn, norm = norm),
             GResBlock(2 * ch, 1 * ch, n_class=1, upsample_factor=1, bn = bn, norm = norm)
         ])
@@ -270,7 +272,7 @@ class Dvd3DConditionalGenerator(nn.Module):
         return y
 
 class DvdStyleConditionalGenerator(nn.Module):
-    def __init__(self, input_nc = 3, latent_dim=2,style_dim = 256, ch=8, nframes=48, step_frames = 1, trajgru = False, noise = False):
+    def __init__(self, input_nc = 3, latent_dim=2,n_grulayers = 1,style_dim = 256, ch=8, nframes=48, step_frames = 1, trajgru = False, noise = False):
         super().__init__()
         self.step_frames = step_frames
         self.latent_dim = latent_dim
@@ -280,6 +282,10 @@ class DvdStyleConditionalGenerator(nn.Module):
         self.noise = noise
         self.criterionAE = torch.nn.MSELoss()
         bn = False
+
+        gru_kernels = [3,5,3][:n_grulayers]
+        gru_hiddens = np.array([1,2,1])[:n_grulayers]
+
         self.encoder = nn.ModuleList([
             nn.Sequential(
                 nn.Conv2d(input_nc, ch, kernel_size=(3, 3), padding=1),
@@ -300,22 +306,17 @@ class DvdStyleConditionalGenerator(nn.Module):
                 nn.Linear(ch*4*e2s_dim*e2s_dim, style_dim),
                 nn.Sigmoid(),
             )
-        n_layers = 1
         self.conv = nn.ModuleList([
-            #ConvGRU(8 * ch, hidden_sizes=[8 * ch, 16 * ch, 8 * ch], kernel_sizes=[3, 5, 3], n_layers=3),
-            ConvGRU(8 * ch, hidden_sizes=[8 * ch], kernel_sizes=3, n_layers=1),
+            ConvGRU(8 * ch, hidden_sizes=8 * ch * gru_hiddens, kernel_sizes=gru_kernels, n_layers=n_grulayers, trajgru=trajgru),
             StyledConv(8 * ch, 8 * ch, 3, style_dim, upsample=True),
             StyledConv(8 * ch, 8 * ch, 3, style_dim, upsample=False),
-            #ConvGRU(8 * ch, hidden_sizes=[8 * ch, 16 * ch, 8 * ch], kernel_sizes=[3, 5, 3], n_layers=3),
-            ConvGRU(8 * ch, hidden_sizes=[8 * ch], kernel_sizes=3, n_layers=n_layers, trajgru=trajgru),
+            ConvGRU(8 * ch, hidden_sizes=8 * ch * gru_hiddens, kernel_sizes=gru_kernels, n_layers=n_grulayers, trajgru=trajgru),
             StyledConv(8 * ch, 8 * ch, 3, style_dim, upsample=True),
             StyledConv(8 * ch, 4 * ch, 3, style_dim, upsample=False),
-            #ConvGRU(8 * ch, hidden_sizes=[8 * ch, 16 * ch, 8 * ch], kernel_sizes=[3, 5, 3], n_layers=3),
-            ConvGRU(4 * ch, hidden_sizes=[4 * ch], kernel_sizes=3, n_layers=n_layers, trajgru=trajgru),
+            ConvGRU(4 * ch, hidden_sizes=4 * ch * gru_hiddens, kernel_sizes=gru_kernels, n_layers=n_grulayers, trajgru=trajgru),
             StyledConv(4 * ch, 4 * ch, 3, style_dim, upsample=True),
             StyledConv(4 * ch, 2 * ch, 3, style_dim, upsample=False),
-            #ConvGRU(4 * ch, hidden_sizes=[4 * ch, 8 * ch, 4 * ch], kernel_sizes=[3, 5, 5], n_layers=3),
-            ConvGRU(2 * ch, hidden_sizes=[2 * ch], kernel_sizes=3, n_layers=n_layers, trajgru=trajgru),
+            ConvGRU(2 * ch, hidden_sizes=2 * ch * gru_hiddens, kernel_sizes=gru_kernels, n_layers=n_grulayers, trajgru=trajgru),
             StyledConv(2 * ch, 2 * ch, 3, style_dim, upsample=True),
             StyledConv(2 * ch, 1 * ch, 3, style_dim, upsample=False),
         ])
@@ -583,17 +584,17 @@ class DvdGanModel(BaseModel):
         latent_dim = 2**(int(math.log(opt.resolution, 2)) - fp_depth)
         input_nc = opt.input_nc + (opt.num_segmentation_classes if opt.use_segmentation else 0)
         if opt.generator == "dvdgan":
-            netG = DvdConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = opt.ch_g, latent_dim = latent_dim, step_frames = 1, bn = not opt.no_bn, noise=not opt.no_noise, loss_ae=self.isTrain and self.opt.lambda_AUX>0)
+            netG = DvdConditionalGenerator(nframes = self.nframes,input_nc = input_nc,n_grulayers = opt.gru_layers,  ch = opt.ch_g, latent_dim = latent_dim, step_frames = 1, bn = not opt.no_bn, noise=not opt.no_noise, loss_ae=self.isTrain and self.opt.lambda_AUX>0)
             #netG = DvdConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = 16, latent_dim = 8, step_frames = 1, bn = True, norm = nn.InstanceNorm2d,)
 
             #netG = DVDGan(self.nframes,input_nc ,ngf = 32, latent_nc=120,fp_levels = 3, res = self.opt.resolution, )
         elif opt.generator == "trajgru": 
-            netG = DvdConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = opt.ch_g, latent_dim = latent_dim, step_frames = 1, bn = not opt.no_bn, noise=not opt.no_noise, loss_ae=self.isTrain and self.opt.lambda_AUX>0, trajgru=True)
+            netG = DvdConditionalGenerator(nframes = self.nframes,input_nc = input_nc,n_grulayers = opt.gru_layers, ch = opt.ch_g, latent_dim = latent_dim, step_frames = 1, bn = not opt.no_bn, noise=not opt.no_noise, loss_ae=self.isTrain and self.opt.lambda_AUX>0, trajgru=True)
             # netG = DvdConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = 16, latent_dim = 8, step_frames = 1, bn = True, norm = nn.InstanceNorm2d, trajgru=True)
         elif opt.generator == "style": 
-            netG = DvdStyleConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = opt.ch_g, latent_dim = latent_dim, step_frames = 1, noise = opt.style_noise)
+            netG = DvdStyleConditionalGenerator(nframes = self.nframes,input_nc = input_nc,n_grulayers = opt.gru_layers, ch = opt.ch_g, latent_dim = latent_dim, step_frames = 1, noise = opt.style_noise)
         elif opt.generator == "styletraj": 
-            netG = DvdStyleConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = opt.ch_g, latent_dim = latent_dim, step_frames = 1, noise = opt.style_noise, trajgru=True)
+            netG = DvdStyleConditionalGenerator(nframes = self.nframes,input_nc = input_nc,n_grulayers = opt.gru_layers, ch = opt.ch_g, latent_dim = latent_dim, step_frames = 1, noise = opt.style_noise, trajgru=True)
         elif opt.generator == "dvdgansimple":
             netG = GRUEncoderDecoderNet(self.nframes,input_nc ,ngf = opt.ch_g, hidden_dims=128, enc2hidden = True)
         elif opt.generator == "dvdgan3d":
