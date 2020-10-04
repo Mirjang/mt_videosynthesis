@@ -504,7 +504,7 @@ class DvdStyle2(nn.Module):
                 y = y.view(-1, self.n_steps, C, W, H).contiguous()
 
             frame_list = [[encoder_list[depth]]*self.n_grulayers]
-            for i in range(self.n_steps):
+            for i in range(self.nframes):
                 print(depth, i, y[:,i,...].shape, [x.shape for x in frame_list[-1]])
                 frame_list.append(rnn(y[:,i,...].squeeze(1), frame_list[-1]))
             frame_hidden_list = []
@@ -515,7 +515,7 @@ class DvdStyle2(nn.Module):
             *_, C, W, H = y.size()
             y = y.view(-1, C, W, H)
 
-            for i in range(self.n_steps): 
+            for i in range(self.nframes): 
                 # print(y[:,:,i,:,:].shape, frame_list[i - 1].shape)
                 frame_list.append(rnn(y[:,i,...], frame_list[i - 1]))
             
