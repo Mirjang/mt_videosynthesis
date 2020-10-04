@@ -610,7 +610,7 @@ class DvdGanModel(BaseModel):
         else: 
             self.loss_names += ['Ds_real', 'Ds_fake', 'Dt_real', 'Dt_fake', 'Ds_GP', 'Dt_GP']
         log_res = int(math.log(opt.resolution, 2))
-        fp_depth = 4
+        fp_depth = min(opt.max_fp, log_res - 3)
         latent_dim = 2**(log_res - fp_depth)
         input_nc = opt.input_nc + (opt.num_segmentation_classes if opt.use_segmentation else 0)
         if opt.generator == "dvdgan":
