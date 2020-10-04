@@ -282,7 +282,7 @@ class DvdStyleConditionalGenerator(nn.Module):
         self.noise = noise
         self.criterionAE = torch.nn.MSELoss()
         bn = False
-
+        self.n_grulayers = n_grulayers
         gru_kernels = [3,5,3][:n_grulayers]
         gru_hiddens = np.array([1,2,1])[:n_grulayers]
 
@@ -364,12 +364,12 @@ class DvdStyleConditionalGenerator(nn.Module):
                 for i in range(self.n_steps):
                     if k == 0:
                         if i == 0:
-                            frame_list.append(conv(y, [encoder_list[depth]]))  # T x [B x ch x ld x ld]
+                            frame_list.append(conv(y, [encoder_list[depth]]*self.n_grulayers))  # T x [B x ch x ld x ld]
                         else:
                             frame_list.append(conv(y, frame_list[i - 1]))
                     else:
                         if i == 0:
-                            frame_list.append(conv(y[:,0,:,:,:].squeeze(1),[encoder_list[depth]]))  # T x [B x ch x ld x ld]
+                            frame_list.append(conv(y[:,0,:,:,:].squeeze(1),[encoder_list[depth]]*self.n_grulayers))  # T x [B x ch x ld x ld]
                         else:
                             frame_list.append(conv(y[:,i,:,:,:].squeeze(1), frame_list[i - 1]))
                 frame_hidden_list = []
