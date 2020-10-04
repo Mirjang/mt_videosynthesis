@@ -46,6 +46,7 @@ class ConvGRUCell(nn.Module):
                 prev_state = torch.zeros(state_size)
 
         # data size is [batch, channel, height, width]
+        print(x.shape, prev_state.shape)
         stacked_inputs = torch.cat([x, prev_state], dim=1)
 
         update = self.activation(self.update_gate(stacked_inputs))
