@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
+from torch.nn.modules.container import ModuleList
 from util.util import *
 from .base_model import BaseModel
 from . import networks
@@ -423,7 +424,7 @@ class DvdStyleConditionalGenerator(nn.Module):
         return y
 
 class DvdStyle2(nn.Module):
-    def __init__(self, input_nc = 3, latent_dim=2,depth = 4, n_grulayers = 1,style_dim = 256, ch=8, nframes=48, step_frames = 1, trajgru = False):
+    def __init__(self, input_nc = 3, latent_dim=2,depth = 4,up_blocks_per_rnn = 1, n_grulayers = 1,style_dim = 256, ch=8, nframes=48, step_frames = 1, trajgru = False):
         super().__init__()
         self.step_frames = step_frames
         self.latent_dim = latent_dim
@@ -433,6 +434,8 @@ class DvdStyle2(nn.Module):
         self.criterionAE = torch.nn.MSELoss()
         self.depth = depth
         self.n_grulayers = n_grulayers
+        self.skip_rnn = up_blocks_per_rnn
+
         gru_kernels = [3,5,3][:n_grulayers]
         gru_hiddens = np.array([1,1,1])[:n_grulayers]
 
@@ -458,22 +461,22 @@ class DvdStyle2(nn.Module):
         self.input = sg2model.ConstantInput(ch*8,size=latent_dim)
 
         rnn = []
-        conv=[]
-        conv1 = []  
-        conv2 = []  
+        conv_fp = []  
         for d in range(self.depth): 
             c = CH[d]
             rnn.append(ConvGRU(c * ch, hidden_sizes=c * ch * gru_hiddens, kernel_sizes=gru_kernels, n_layers=n_grulayers, trajgru=trajgru),)
-            conv.append(nn.Sequential(
-                StyledConv(c * ch, c * ch, 3, style_dim, upsample=True),
-                StyledConv(c * ch, CH[d+1] * ch, 3, style_dim, upsample=False),
-                ))
+            conv = []
+            conv.append(StyledConv(c * ch, c * ch, 3, style_dim, upsample=True))
 
-            conv2.append(StyledConv(c * ch, CH[d+1] * ch, 3, style_dim, upsample=False))
+            for i in range(up_blocks_per_rnn -1): 
+                conv.append(StyledConv(c * ch, c * ch * ch, 3, style_dim, upsample=False))
+                conv.append(StyledConv(c * ch, c * ch, 3, style_dim, upsample=True))
+
+            conv.append(StyledConv(c * ch, CH[d+1] * ch, 3, style_dim, upsample=False))
+
+            conv_fp.append(nn.ModuleList(conv))
         self.rnn = nn.ModuleList(rnn)
-        self.conv = nn.ModuleList(conv)
-        self.conv1 = nn.ModuleList(conv1)
-        self.conv2 = nn.ModuleList(conv2)
+        self.conv_fp = nn.ModuleList(conv_fp)
 
         self.colorize = nn.Conv2d(1 * ch, 3, kernel_size=(3, 3), padding=1)
         #decode 1 RNN step into multiple frames using 3x3 convs
@@ -493,7 +496,7 @@ class DvdStyle2(nn.Module):
         for layer in self.encoder: 
             encoder_list.append(layer(encoder_list[-1]))
         #y = self.encoder(x)
-        encoder_list = encoder_list[1:]
+        encoder_list = encoder_list[1::self.skip_rnn]
         encoder_list.reverse()
 
         y = self.input(encoder_list[0]) #B x C x W x H
@@ -518,9 +521,8 @@ class DvdStyle2(nn.Module):
             y = y.permute(1, 0, 2, 3, 4).contiguous() # B x T x ch x ld x ld
             *_, C, W, H = y.size()
             y = y.view(-1, C, W, H)
-            y = self.conv(y, style)
-            # y = conv1(y, style) # BT, C, W, H
-            # y = conv2(y, style) # BT, C, W, H
+            for conv in self.conv_fp[depth]: 
+                y = conv(y, style) # BT, C, W, H
 
         y = F.relu(y)
         BT, C, W, H = y.size()
@@ -637,9 +639,9 @@ class DvdGanModel(BaseModel):
         elif opt.generator == "dvdgan3d":
             netG = Dvd3DConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = opt.ch_g, latent_dim = latent_dim, bn = not opt.no_bn, noise=not opt.no_noise, loss_ae=self.isTrain and self.opt.lambda_AUX>0)
         elif opt.generator == "style2": 
-            netG = DvdStyle2(nframes = self.nframes, depth = fp_depth,input_nc = input_nc,n_grulayers = opt.gru_layers, ch = opt.ch_g, latent_dim = latent_dim, step_frames = 1)
+            netG = DvdStyle2(nframes = self.nframes, depth = fp_depth, up_blocks_per_rnn=opt.up_blocks_per_rnn, input_nc = input_nc,n_grulayers = opt.gru_layers, ch = opt.ch_g, latent_dim = latent_dim, step_frames = 1)
         elif opt.generator == "style2traj": 
-            netG = DvdStyle2(nframes = self.nframes, depth = fp_depth,input_nc = input_nc,n_grulayers = opt.gru_layers, ch = opt.ch_g, latent_dim = latent_dim, step_frames = 1, trajgru=True)
+            netG = DvdStyle2(nframes = self.nframes, depth = fp_depth, up_blocks_per_rnn=opt.up_blocks_per_rnn, input_nc = input_nc,n_grulayers = opt.gru_layers, ch = opt.ch_g, latent_dim = latent_dim, step_frames = 1, trajgru=True)
         else:
             assert False, f"unknown generator model specified: {opt.generator}!"
         self.netG = networks.init_net(netG, opt.init_type, opt.init_gain, self.gpu_ids)
