@@ -284,7 +284,7 @@ class DvdStyleConditionalGenerator(nn.Module):
         bn = False
         self.n_grulayers = n_grulayers
         gru_kernels = [3,5,3][:n_grulayers]
-        gru_hiddens = np.array([1,2,1])[:n_grulayers]
+        gru_hiddens = np.array([1,1,1])[:n_grulayers]
 
         self.encoder = nn.ModuleList([
             nn.Sequential(
