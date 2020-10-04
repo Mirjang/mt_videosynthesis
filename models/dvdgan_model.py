@@ -442,9 +442,9 @@ class DvdStyle2(nn.Module):
         self.encoder = nn.ModuleList([
             nn.Sequential(
                 SpectralNorm(nn.Conv2d(input_nc, ch, kernel_size=(3, 3), padding=1)),
-                GResBlock(ch*CH[-1], ch*CH[-2],n_class=1, downsample_factor = 2, bn = False),
+                GResBlock(ch*CH[-1], ch*CH[-2],n_class=1, downsample_factor = 2, bn = False, weight_norm=None),
                 ),
-            *[GResBlock(ch*CH[-d-1], ch*CH[-d-2],n_class=1, downsample_factor = 2, bn = False) for d in range(1,self.depth)]
+            *[GResBlock(ch*CH[-d-1], ch*CH[-d-2],n_class=1, downsample_factor = 2, bn = False, weight_norm=None) for d in range(1,self.depth)]
         ])
 
         e2s_dim = latent_dim // 4
@@ -491,7 +491,7 @@ class DvdStyle2(nn.Module):
         encoder_list.reverse()
 
         y = self.input(encoder_list[0]).unsqueeze(1)
-        
+        print(encoder_list[0].shape)
         style = self.encoder2style(y)
         style = style.unsqueeze(1).expand(-1, self.nframes, -1).contiguous().view(x.size(0)*self.nframes, -1) # BT x style
 
