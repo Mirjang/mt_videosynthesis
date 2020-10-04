@@ -307,16 +307,16 @@ class DvdStyleConditionalGenerator(nn.Module):
                 nn.Sigmoid(),
             )
         self.conv = nn.ModuleList([
-            ConvGRU(8 * ch, hidden_sizes=8 * ch * gru_hiddens, kernel_sizes=gru_kernels, n_layers=n_grulayers, trajgru=trajgru),
+            ConvGRU(8 * ch, hidden_sizes=4 * ch * gru_hiddens, kernel_sizes=gru_kernels, n_layers=n_grulayers, trajgru=trajgru),
             StyledConv(8 * ch, 8 * ch, 3, style_dim, upsample=True),
             StyledConv(8 * ch, 8 * ch, 3, style_dim, upsample=False),
-            ConvGRU(8 * ch, hidden_sizes=8 * ch * gru_hiddens, kernel_sizes=gru_kernels, n_layers=n_grulayers, trajgru=trajgru),
+            ConvGRU(8 * ch, hidden_sizes=4 * ch * gru_hiddens, kernel_sizes=gru_kernels, n_layers=n_grulayers, trajgru=trajgru),
             StyledConv(8 * ch, 8 * ch, 3, style_dim, upsample=True),
             StyledConv(8 * ch, 4 * ch, 3, style_dim, upsample=False),
-            ConvGRU(4 * ch, hidden_sizes=4 * ch * gru_hiddens, kernel_sizes=gru_kernels, n_layers=n_grulayers, trajgru=trajgru),
+            ConvGRU(4 * ch, hidden_sizes=2 * ch * gru_hiddens, kernel_sizes=gru_kernels, n_layers=n_grulayers, trajgru=trajgru),
             StyledConv(4 * ch, 4 * ch, 3, style_dim, upsample=True),
             StyledConv(4 * ch, 2 * ch, 3, style_dim, upsample=False),
-            ConvGRU(2 * ch, hidden_sizes=2 * ch * gru_hiddens, kernel_sizes=gru_kernels, n_layers=n_grulayers, trajgru=trajgru),
+            ConvGRU(2 * ch, hidden_sizes=1 * ch * gru_hiddens, kernel_sizes=gru_kernels, n_layers=n_grulayers, trajgru=trajgru),
             StyledConv(2 * ch, 2 * ch, 3, style_dim, upsample=True),
             StyledConv(2 * ch, 1 * ch, 3, style_dim, upsample=False),
         ])
