@@ -506,7 +506,7 @@ class DvdStyle2(nn.Module):
             for i in range(self.nframes):
                 frame_list.append(rnn(y[:,i,...].squeeze(1), frame_list[-1]))
             frame_hidden_list = []
-            for i in frame_list: #collect hiddens of last rnn
+            for i in frame_list[1:]: #collect hiddens of last rnn (ignore first frame =input)
                 frame_hidden_list.append(i[-1].unsqueeze(0))
             y = torch.cat(frame_hidden_list, dim=0) # T x B x ch x ld x ld
             y = y.permute(1, 0, 2, 3, 4).contiguous() # B x T x ch x ld x ld
