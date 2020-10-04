@@ -72,6 +72,8 @@ class BaseOptions():
         parser.add_argument('--ch_dt', type=int, default=None, help='dt. channel multiplier')
         parser.add_argument('--gru_layers', type=int, default=1, help='number of gru cells per GRU')
         parser.add_argument('--max_fp', type=int, default=5, help='max. levels for dvdgan-FP')
+        parser.add_argument('--start_fp', type=int, default=3, help='lowest level has 2eK resolution(default=3)')
+
         parser.add_argument('--up_blocks_per_rnn', type=int, default=1, help='go up K resolutions before rnn')
 
         parser.add_argument('--style_noise', action='store_true', help='latent input = noise if noise else encoder output')

@@ -517,7 +517,7 @@ class DvdStyle2(nn.Module):
 
                 frame_list = [[encoder_list[depth]]*self.n_grulayers]
                 for i in range(self.nframes):
-                    print(depth, i, y.shape, [x.shape for x in frame_list[-1]])
+                    #print(depth, i, y.shape, [x.shape for x in frame_list[-1]])
                     frame_list.append(rnn(y[:,i,...].squeeze(1), frame_list[-1]))
                 frame_hidden_list = []
                 for i in frame_list[1:]: #collect hiddens of last rnn (ignore first frame =input)
@@ -625,7 +625,7 @@ class DvdGanModel(BaseModel):
         else: 
             self.loss_names += ['Ds_real', 'Ds_fake', 'Dt_real', 'Dt_fake', 'Ds_GP', 'Dt_GP']
         log_res = int(math.log(opt.resolution, 2))
-        fp_depth = min(opt.max_fp, log_res - 3)
+        fp_depth = min(opt.max_fp, log_res - opt.start_fp)
         latent_dim = 2**(log_res - fp_depth)
         input_nc = opt.input_nc + (opt.num_segmentation_classes if opt.use_segmentation else 0)
         if opt.generator == "dvdgan":
