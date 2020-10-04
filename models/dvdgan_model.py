@@ -499,7 +499,7 @@ class DvdStyle2(nn.Module):
         for layer in self.encoder: 
             encoder_list.append(layer(encoder_list[-1]))
         #y = self.encoder(x)
-        encoder_list = encoder_list[1::self.skip_rnn]
+        encoder_list = encoder_list[1:]
         encoder_list.reverse()
 
         y = self.input(encoder_list[0]) #B x C x W x H
