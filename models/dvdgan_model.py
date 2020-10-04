@@ -498,11 +498,11 @@ class DvdStyle2(nn.Module):
         encoder_list = [x]
         for layer in self.encoder: 
             encoder_list.append(layer(encoder_list[-1]))
-        #y = self.encoder(x)
         encoder_list = encoder_list[1:]
         encoder_list.reverse()
 
         y = self.input(encoder_list[0]) #B x C x W x H
+        print(y.shape, self.latent_dim)
         style = self.encoder2style(y)
         style = style.unsqueeze(1).expand(-1, self.nframes, -1).contiguous().view(x.size(0)*self.nframes, -1) # BT x style
         y = y.unsqueeze(1).expand(-1, self.nframes, -1, -1, -1) #B x T x C x W x H
