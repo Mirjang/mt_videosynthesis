@@ -493,15 +493,15 @@ class DvdStyle2(nn.Module):
         y = self.input(encoder_list[0]) #B x C x W x H
         style = self.encoder2style(y)
         style = style.unsqueeze(1).expand(-1, self.nframes, -1).contiguous().view(x.size(0)*self.nframes, -1) # BT x style
-        y = y.unsqueeze(1).expand(-1, self.n_steps, -1, -1, -1) #B x T x C x W x H
+        y = y.unsqueeze(1).expand(-1, self.nframes, -1, -1, -1) #B x T x C x W x H
 
         for depth, (rnn, conv1, conv2) in enumerate(zip(self.rnn, self.conv1, self.conv2)): 
             frame_list = []
             frame_list = [encoder_list[depth]]
-
+            print(depth)
             if depth > 0:
                 _, C, W, H = y.size()
-                y = y.view(-1, self.n_steps, C, W, H).contiguous()
+                y = y.view(-1, self.nframes, C, W, H).contiguous()
 
             frame_list = [[encoder_list[depth]]*self.n_grulayers]
             for i in range(self.nframes):

@@ -137,7 +137,6 @@ class ConvGRU(nn.Module):
         for i in range(self.n_layers):
             cell = self.cells[i]
             cell_hidden = hidden[i]
-            print(self.n_layers, i)
             # pass through layer
             upd_cell_hidden = cell(input_, cell_hidden) # TODO comment
             output.append(upd_cell_hidden)
