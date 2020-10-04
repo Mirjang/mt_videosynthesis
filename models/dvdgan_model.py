@@ -458,14 +458,20 @@ class DvdStyle2(nn.Module):
         self.input = sg2model.ConstantInput(ch*8,size=latent_dim)
 
         rnn = []
+        conv=[]
         conv1 = []  
         conv2 = []  
         for d in range(self.depth): 
             c = CH[d]
             rnn.append(ConvGRU(c * ch, hidden_sizes=c * ch * gru_hiddens, kernel_sizes=gru_kernels, n_layers=n_grulayers, trajgru=trajgru),)
-            conv1.append(StyledConv(c * ch, c * ch, 3, style_dim, upsample=True))
+            conv.append(nn.Sequential(
+                StyledConv(c * ch, c * ch, 3, style_dim, upsample=True),
+                StyledConv(c * ch, CH[d+1] * ch, 3, style_dim, upsample=False),
+                ))
+
             conv2.append(StyledConv(c * ch, CH[d+1] * ch, 3, style_dim, upsample=False))
         self.rnn = nn.ModuleList(rnn)
+        self.conv = nn.ModuleList(conv)
         self.conv1 = nn.ModuleList(conv1)
         self.conv2 = nn.ModuleList(conv2)
 
@@ -512,8 +518,9 @@ class DvdStyle2(nn.Module):
             y = y.permute(1, 0, 2, 3, 4).contiguous() # B x T x ch x ld x ld
             *_, C, W, H = y.size()
             y = y.view(-1, C, W, H)
-            y = conv1(y, style) # BT, C, W, H
-            y = conv2(y, style) # BT, C, W, H
+            y = self.conv(y, style)
+            # y = conv1(y, style) # BT, C, W, H
+            # y = conv2(y, style) # BT, C, W, H
 
         y = F.relu(y)
         BT, C, W, H = y.size()
