@@ -46,7 +46,6 @@ class ConvGRUCell(nn.Module):
                 prev_state = torch.zeros(state_size)
 
         # data size is [batch, channel, height, width]
-        print(x.shape, prev_state.shape)
         stacked_inputs = torch.cat([x, prev_state], dim=1)
 
         update = self.activation(self.update_gate(stacked_inputs))
@@ -138,7 +137,7 @@ class ConvGRU(nn.Module):
         for i in range(self.n_layers):
             cell = self.cells[i]
             cell_hidden = hidden[i]
-
+            print(self.n_layers, i)
             # pass through layer
             upd_cell_hidden = cell(input_, cell_hidden) # TODO comment
             output.append(upd_cell_hidden)
