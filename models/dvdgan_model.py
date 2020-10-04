@@ -464,13 +464,16 @@ class DvdStyle2(nn.Module):
         conv_fp = []  
         for d in range(self.depth): 
             c = CH[d]
-            rnn.append(ConvGRU(c * ch, hidden_sizes=c * ch * gru_hiddens, kernel_sizes=gru_kernels, n_layers=n_grulayers, trajgru=trajgru),)
+            if d % self.skip_rnn == 0: 
+                rnn.append(ConvGRU(c * ch, hidden_sizes=c * ch * gru_hiddens, kernel_sizes=gru_kernels, n_layers=n_grulayers, trajgru=trajgru),)
+            else: 
+                rnn.append(None)
             conv = []
             conv.append(StyledConv(c * ch, c * ch, 3, style_dim, upsample=True))
 
-            for i in range(up_blocks_per_rnn -1): 
-                conv.append(StyledConv(c * ch, c * ch * ch, 3, style_dim, upsample=False))
-                conv.append(StyledConv(c * ch, c * ch, 3, style_dim, upsample=True))
+            # for i in range(up_blocks_per_rnn -1): 
+            #     conv.append(StyledConv(c * ch, c * ch * ch, 3, style_dim, upsample=False))
+            #     conv.append(StyledConv(c * ch, c * ch, 3, style_dim, upsample=True))
 
             conv.append(StyledConv(c * ch, CH[d+1] * ch, 3, style_dim, upsample=False))
 
@@ -505,22 +508,24 @@ class DvdStyle2(nn.Module):
         y = y.unsqueeze(1).expand(-1, self.nframes, -1, -1, -1) #B x T x C x W x H
 
         for depth, (rnn, conv) in enumerate(zip(self.rnn, self.conv)): 
-            frame_list = []
-            frame_list = [encoder_list[depth]]
-            if depth > 0:
-                _, C, W, H = y.size()
-                y = y.view(-1, self.nframes, C, W, H).contiguous()
+            if rnn: 
+                frame_list = []
+                frame_list = [encoder_list[depth]]
+                if depth > 0:
+                    _, C, W, H = y.size()
+                    y = y.view(-1, self.nframes, C, W, H).contiguous()
 
-            frame_list = [[encoder_list[depth]]*self.n_grulayers]
-            for i in range(self.nframes):
-                frame_list.append(rnn(y[:,i,...].squeeze(1), frame_list[-1]))
-            frame_hidden_list = []
-            for i in frame_list[1:]: #collect hiddens of last rnn (ignore first frame =input)
-                frame_hidden_list.append(i[-1].unsqueeze(0))
-            y = torch.cat(frame_hidden_list, dim=0) # T x B x ch x ld x ld
-            y = y.permute(1, 0, 2, 3, 4).contiguous() # B x T x ch x ld x ld
-            *_, C, W, H = y.size()
-            y = y.view(-1, C, W, H)
+                frame_list = [[encoder_list[depth]]*self.n_grulayers]
+                for i in range(self.nframes):
+                    frame_list.append(rnn(y[:,i,...].squeeze(1), frame_list[-1]))
+                frame_hidden_list = []
+                for i in frame_list[1:]: #collect hiddens of last rnn (ignore first frame =input)
+                    frame_hidden_list.append(i[-1].unsqueeze(0))
+                y = torch.cat(frame_hidden_list, dim=0) # T x B x ch x ld x ld
+                y = y.permute(1, 0, 2, 3, 4).contiguous() # B x T x ch x ld x ld
+                *_, C, W, H = y.size()
+                y = y.view(-1, C, W, H)
+
             for layer in conv: 
                 y = layer(y, style) # BT, C, W, H
 
