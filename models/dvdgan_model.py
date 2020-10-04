@@ -439,7 +439,7 @@ class DvdStyle2(nn.Module):
         gru_kernels = [3,5,3][:n_grulayers]
         gru_hiddens = np.array([1,1,1])[:n_grulayers]
 
-        CH = [8,8,8,4,2,1]
+        CH = [8,8,8,8,8,8,4,2,1]
         CH = CH[-depth-1:]
 
         self.encoder = nn.ModuleList([
