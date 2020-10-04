@@ -512,7 +512,7 @@ class DvdStyle2(nn.Module):
             y = y.permute(1, 0, 2, 3, 4).contiguous() # B x T x ch x ld x ld
             *_, C, W, H = y.size()
             y = y.view(-1, C, W, H)
-            
+            print(y.shape, style.shape)
             y = conv1(y, style) # BT, C, W, H
             y = conv2(y, style) # BT, C, W, H
 
