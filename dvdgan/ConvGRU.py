@@ -133,7 +133,7 @@ class ConvGRU(nn.Module):
             hidden = [hidden]
 
         for i in range(self.n_layers):
-
+            print(i)
             cell = self.cells[i]
             cell_hidden = hidden[i]
 
