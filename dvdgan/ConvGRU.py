@@ -130,9 +130,11 @@ class ConvGRU(nn.Module):
         elif type(hidden) != list:
             ret_list = False
             hidden = [hidden]
+        
+        if len(hidden) < self.n_layers: 
+            hidden += [None] * (self.n_layers-len(hidden))
 
         for i in range(self.n_layers):
-            print(i)
             cell = self.cells[i]
             cell_hidden = hidden[i]
 
