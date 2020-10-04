@@ -36,7 +36,11 @@ GENERATOR=style
 
 NAME=${DATASET}_${MODEL}_${GENERATOR}_${RESOLUTION}_masked
 git add -A 
-git commit -m $NAME
+git status | grep modified
+if [ $? -eq 0 ]
+then
+    git commit -m $NAME
+fiE
 DISPNAME=${NAME}
 # vid settings
 SKIP=1
