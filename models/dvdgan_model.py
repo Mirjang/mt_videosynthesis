@@ -622,7 +622,7 @@ class DvdGanModel(BaseModel):
         fp_depth = min(opt.max_fp, log_res - opt.start_fp)
         latent_dim = 2**(log_res - fp_depth)
         input_nc = opt.input_nc + (opt.num_segmentation_classes if opt.use_segmentation else 0)
-        print(f"FP: depth: {fp_depth}, latent: {latent_dim}, up at: {[2**i for i in range(latent_dim, opt.resolution, setp = opt.up_blocks_per_rnn)]}")
+        print(f"FP: depth: {fp_depth}, latent: {latent_dim}, up at: {[2**i for i in range(latent_dim, opt.resolution, opt.up_blocks_per_rnn)]}")
         if opt.generator == "dvdgan":
             netG = DvdConditionalGenerator(nframes = self.nframes,input_nc = input_nc,n_grulayers = opt.gru_layers,  ch = opt.ch_g, latent_dim = latent_dim, step_frames = 1, bn = not opt.no_bn, noise=not opt.no_noise, loss_ae=self.isTrain and self.opt.lambda_AUX>0)
             #netG = DvdConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = 16, latent_dim = 8, step_frames = 1, bn = True, norm = nn.InstanceNorm2d,)
