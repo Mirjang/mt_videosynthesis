@@ -470,11 +470,6 @@ class DvdStyle2(nn.Module):
                 rnn.append(None)
             conv = []
             conv.append(StyledConv(c * ch, c * ch, 3, style_dim, upsample=True))
-
-            # for i in range(up_blocks_per_rnn -1): 
-            #     conv.append(StyledConv(c * ch, c * ch * ch, 3, style_dim, upsample=False))
-            #     conv.append(StyledConv(c * ch, c * ch, 3, style_dim, upsample=True))
-
             conv.append(StyledConv(c * ch, CH[d+1] * ch, 3, style_dim, upsample=False))
 
             conv_fp.append(nn.ModuleList(conv))
@@ -508,7 +503,6 @@ class DvdStyle2(nn.Module):
 
         for depth, (rnn, conv) in enumerate(zip(self.rnn, self.conv)): 
             if rnn: 
-                print(y.shape)
                 frame_list = []
                 frame_list = [encoder_list[depth]]
                 if depth > 0:
@@ -628,7 +622,7 @@ class DvdGanModel(BaseModel):
         fp_depth = min(opt.max_fp, log_res - opt.start_fp)
         latent_dim = 2**(log_res - fp_depth)
         input_nc = opt.input_nc + (opt.num_segmentation_classes if opt.use_segmentation else 0)
-        print(f"FP: depth: {fp_depth}, latent: {latent_dim}")
+        print(f"FP: depth: {fp_depth}, latent: {latent_dim}, up at: {[2**i for i in range(latent_dim, opt.resolution, setp = opt.up_blocks_per_rnn)]}")
         if opt.generator == "dvdgan":
             netG = DvdConditionalGenerator(nframes = self.nframes,input_nc = input_nc,n_grulayers = opt.gru_layers,  ch = opt.ch_g, latent_dim = latent_dim, step_frames = 1, bn = not opt.no_bn, noise=not opt.no_noise, loss_ae=self.isTrain and self.opt.lambda_AUX>0)
             #netG = DvdConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = 16, latent_dim = 8, step_frames = 1, bn = True, norm = nn.InstanceNorm2d,)
