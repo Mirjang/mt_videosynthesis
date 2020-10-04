@@ -502,13 +502,13 @@ class DvdStyle2(nn.Module):
         encoder_list.reverse()
 
         y = self.input(encoder_list[0]) #B x C x W x H
-        print(y.shape, self.latent_dim)
         style = self.encoder2style(y)
         style = style.unsqueeze(1).expand(-1, self.nframes, -1).contiguous().view(x.size(0)*self.nframes, -1) # BT x style
         y = y.unsqueeze(1).expand(-1, self.nframes, -1, -1, -1) #B x T x C x W x H
 
         for depth, (rnn, conv) in enumerate(zip(self.rnn, self.conv)): 
             if rnn: 
+                print(y.shape)
                 frame_list = []
                 frame_list = [encoder_list[depth]]
                 if depth > 0:
