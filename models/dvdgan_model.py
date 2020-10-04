@@ -517,6 +517,7 @@ class DvdStyle2(nn.Module):
 
                 frame_list = [[encoder_list[depth]]*self.n_grulayers]
                 for i in range(self.nframes):
+                    print(depth, i, y.shape, [x.shape for x in frame_list[-1]])
                     frame_list.append(rnn(y[:,i,...].squeeze(1), frame_list[-1]))
                 frame_hidden_list = []
                 for i in frame_list[1:]: #collect hiddens of last rnn (ignore first frame =input)
