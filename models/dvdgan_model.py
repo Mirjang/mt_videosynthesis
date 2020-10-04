@@ -476,7 +476,7 @@ class DvdStyle2(nn.Module):
 
             conv_fp.append(nn.ModuleList(conv))
         self.rnn = nn.ModuleList(rnn)
-        self.conv_fp = nn.ModuleList(conv_fp)
+        self.conv = nn.ModuleList(conv_fp)
 
         self.colorize = nn.Conv2d(1 * ch, 3, kernel_size=(3, 3), padding=1)
         #decode 1 RNN step into multiple frames using 3x3 convs
