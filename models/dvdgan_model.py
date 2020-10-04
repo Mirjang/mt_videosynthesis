@@ -498,7 +498,6 @@ class DvdStyle2(nn.Module):
         for depth, (rnn, conv1, conv2) in enumerate(zip(self.rnn, self.conv1, self.conv2)): 
             frame_list = []
             frame_list = [encoder_list[depth]]
-            print(depth)
             if depth > 0:
                 _, C, W, H = y.size()
                 y = y.view(-1, self.nframes, C, W, H).contiguous()
@@ -506,6 +505,7 @@ class DvdStyle2(nn.Module):
             frame_list = [[encoder_list[depth]]*self.n_grulayers]
             for i in range(self.nframes):
                 print(depth, i, y.shape, [x.shape for x in frame_list[-1]])
+                print("woop")
                 frame_list.append(rnn(y[:,i,...].squeeze(1), frame_list[-1]))
             frame_hidden_list = []
             for i in frame_list: #collect hiddens of last rnn
