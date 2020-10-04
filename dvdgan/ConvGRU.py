@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from torch.nn import init
 from trajgru.trajgru import TrajGRU
+import numpy as np
 
 class ConvGRUCell(nn.Module):
     """
@@ -71,6 +72,10 @@ class ConvGRU(nn.Module):
         super().__init__()
 
         self.input_size = input_size
+        if type(hidden_sizes) == np.ndarray: 
+            hidden_sizes = hidden_sizes.tolist()
+        if type(kernel_sizes) == np.ndarray: 
+            kernel_sizes = kernel_sizes.tolist()
 
         if type(hidden_sizes) != list:
             self.hidden_sizes = [hidden_sizes]*n_layers
