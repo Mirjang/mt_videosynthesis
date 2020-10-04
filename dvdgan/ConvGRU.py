@@ -89,7 +89,7 @@ class ConvGRU(nn.Module):
             self.kernel_sizes = kernel_sizes
 
         self.n_layers = n_layers
-
+        print(n_layers, kernel_sizes, hidden_sizes)
         cells = nn.ModuleList()
 
         for i in range(self.n_layers):
