@@ -34,7 +34,7 @@ RESOLUTION=128
 FPS=25
 GENERATOR=style
 
-NAME=${DATASET}_${MODEL}_${GENERATOR}_${RESOLUTION}_
+NAME=${DATASET}_${MODEL}_${GENERATOR}_${RESOLUTION}
 git add -A 
 git status | grep modified
 if [ $? -eq 0 ]
