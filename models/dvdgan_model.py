@@ -468,15 +468,16 @@ class DvdStyle2(nn.Module):
                 rnn.append(ConvGRU(c * ch, hidden_sizes=c * ch * gru_hiddens, kernel_sizes=gru_kernels, n_layers=n_grulayers, trajgru=trajgru),)
             else: 
                 rnn.append(None)
-            conv = []
-            conv.append(StyledConv(c * ch, c * ch, 3, style_dim, upsample=True))
-            conv.append(StyledConv(c * ch, CH[d+1] * ch, 3, style_dim, upsample=False))
+            conv = nn.ModuleList()
+            conv_fp.append(StyledConv(c * ch, c * ch, 3, style_dim, upsample=True))
+            conv_fp.append(StyledConv(c * ch, CH[d+1] * ch, 3, style_dim, upsample=False))
 
-            conv_fp.append(nn.ModuleList(conv))
+            #conv_fp.append(conv)
         self.rnn = nn.ModuleList(rnn)
         self.conv = nn.ModuleList(conv_fp)
 
-        self.colorize = nn.Conv2d(1 * ch, 3, kernel_size=(3, 3), padding=1)
+        self.colorize = sg2model.ToRGB(1*ch, style_dim, upsample=False)
+        #self.colorize = nn.Conv2d(1 * ch, 3, kernel_size=(3, 3), padding=1)
         #decode 1 RNN step into multiple frames using 3x3 convs
         if step_frames > 1:
             self.decoder = nn.Sequential(
@@ -496,9 +497,11 @@ class DvdStyle2(nn.Module):
         encoder_list = encoder_list[1:]
         encoder_list.reverse()
 
-        y = self.input(encoder_list[0]) #B x C x W x H
-        style = self.encoder2style(y)
+        style = self.encoder2style(encoder_list[0])
         style = style.unsqueeze(1).expand(-1, self.nframes, -1).contiguous().view(x.size(0)*self.nframes, -1) # BT x style
+        y = self.input(encoder_list[0]) #B x C x W x H
+     #   y = encoder_list[0] #B x C x W x H
+
         y = y.unsqueeze(1).expand(-1, self.nframes, -1, -1, -1) #B x T x C x W x H
 
         for depth, (rnn, conv) in enumerate(zip(self.rnn, self.conv)): 
@@ -521,10 +524,12 @@ class DvdStyle2(nn.Module):
                 *_, C, W, H = y.size()
                 y = y.view(-1, C, W, H)
 
-            for layer in conv: 
-                y = layer(y, style) # BT, C, W, H
+            # for layer in conv: 
+            #     y = layer(y, style) # BT, C, W, H
+            y = self.conv[2*depth](y, style) # BT, C, W, H
+            y = self.conv[2*depth +1](y, style) # BT, C, W, H
 
-        y = F.relu(y)
+
         BT, C, W, H = y.size()
 
         if self.step_frames > 1:
@@ -558,7 +563,7 @@ class DvdStyle2(nn.Module):
 
         #     frame_0 = frame_0.unsqueeze(1)
 
-        y = self.colorize(y)
+        y = self.colorize(y, style)
         y = y.view(-1, self.nframes,3, W, H) # B, T/S, C*S, W, H
         y = torch.tanh(y)
         y = torch.cat([frame_0, y],  dim = 1)
@@ -878,6 +883,9 @@ class DvdGanModel(BaseModel):
         self.forward(frame_length=Te)
         _, T,*_ = self.predicted_video.shape
         T = min(T,TT,Te) # just making sure to cut target if we didnt predict all the frames and to cut prediction, if we predicted more than target (i.e. we already messed up somewhere)
+        if verbose: 
+            print(f"Pred Vid:   min: {self.predicted_video[:,1:,...].min().item()}; max:  {self.predicted_video[:,1:,...].max().item()}; avg: {self.predicted_video[:,1:,...].mean().item()}")
+            print(f"Target Vid: min: {self.target_video.min().item()}; max:  {self.target_video.max().item()}; avg: {self.target_video.mean().item()}")
 
         # update Generator every n_critic steps
         if self.iter % self.opt.n_critic == 0:
