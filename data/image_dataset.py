@@ -1,6 +1,7 @@
 import torch
+import numpy as np
+from torch._C import dtype
 import torchvision
-import sys
 import os
 from data.base_dataset import BaseDataset
 import torch.nn.functional as F
@@ -54,8 +55,8 @@ class ImageDataset(BaseDataset):
         out = {'VIDEO': image.unsqueeze(0)}
 
         if self.use_segmentation: 
-            labelmap = torch.Tensor(Image.open(self.seg[index]))
-            staticmap = torch.zeros_like(labelmap)
+            labelmap = np.array(Image.open(self.seg[index]), dtype = np.long)
+            staticmap = np.zeros_like(labelmap)
             for i in self.dynamic_indices: 
                 staticmap[labelmap==i] = 1
             out['SEGMENTATION'] = staticmap.unsqueeze(0)
