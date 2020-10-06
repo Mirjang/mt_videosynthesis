@@ -54,13 +54,13 @@ class ImageDataset(BaseDataset):
         out = {'VIDEO': image.unsqueeze(0)}
 
         if self.use_segmentation: 
-            labelmap = transforms.ToTensor()(Image.open(self.seg[index]))
+            labelmap = torch.Tensor(Image.open(self.seg[index]))
             staticmap = torch.zeros_like(labelmap)
             for i in self.dynamic_indices: 
                 staticmap[labelmap==i] = 1
             out['SEGMENTATION'] = staticmap.unsqueeze(0)
             print(f"found: {[(x, self.label_dict[x]) for x in torch.unique(labelmap).tolist()]}")
-            
+
         return out
 
 
