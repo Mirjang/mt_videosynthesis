@@ -59,9 +59,9 @@ class ImageDataset(BaseDataset):
             staticmap = np.zeros_like(labelmap)
             for i in self.dynamic_indices: 
                 staticmap[labelmap==i] = 1
-            out['SEGMENTATION'] = staticmap.unsqueeze(0)
+            out['SEGMENTATION'] = torch.tensor(staticmap).unsqueeze(0)
             print(f"found: {[(x, self.label_dict[x]) for x in torch.unique(labelmap).tolist()]}")
-
+            print(out['SEGMENTATION'].shape)
         return out
 
 
