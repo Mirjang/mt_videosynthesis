@@ -55,4 +55,4 @@ VAL_SET=val #split
 
 DATASET=gaugan
 DATASET_MODE=image
-python test.py --grid 5 --ch_g 32 --ch_ds 16 --ch_dt 16 --masked_update --no_dt_prepool --phase val --dataroot $DATASETS_DIR/$DATASET --results_dir $RESULTS_DIR --max_clip_length $LEN --skip_frames $SKIP --batch_size $BATCHSIZE --resolution $RESOLUTION --fps $FPS --dataroot $DATASETS_DIR/$DATASET --checkpoints_dir $CHECKPOINT_DIR --name $NAME --model $MODEL --generator $GENERATOR --dataset_mode $DATASET_MODE --gpu_ids $GPU_ID
+python test.py --grid 5 --ch_g 32 --ch_ds 16 --ch_dt 16 --masked_update --use_segmentation --no_dt_prepool --phase val --dataroot $DATASETS_DIR/$DATASET --results_dir $RESULTS_DIR --max_clip_length $LEN --skip_frames $SKIP --batch_size $BATCHSIZE --resolution $RESOLUTION --fps $FPS --dataroot $DATASETS_DIR/$DATASET --checkpoints_dir $CHECKPOINT_DIR --name $NAME --model $MODEL --generator $GENERATOR --dataset_mode $DATASET_MODE --gpu_ids $GPU_ID
