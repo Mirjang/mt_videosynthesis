@@ -1,48 +1,8 @@
-0: unlabeled
-1: person
-2: bicycle
-3: car
-4: motorcycle
-5: airplane
-6: bus
-7: train
-8: truck
-9: boat
-16: bird
-17: cat
-18: dog
-19: horse
-20: sheep
-21: cow
-22: elephant
-23: bear
-24: zebra
-25: giraffe
-26: hat
-27: backpack
-28: umbrella
-29: shoe
-34: frisbee
-35: skis
-36: snowboard
-37: sports ball
-38: kite
-39: baseball bat
-40: baseball glove
-41: skateboard
-42: surfboard
-43: tennis racket
-94: branch
 106: clouds
 119: flower
 120: fog
-124: grass
 129: leaves
-142: plant-other
 148: river
 155: sea
-157: sky-other
-159: snow
-169: tree
 178: water-other
 179: waterdrops

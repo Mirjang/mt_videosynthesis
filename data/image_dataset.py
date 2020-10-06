@@ -60,7 +60,9 @@ class ImageDataset(BaseDataset):
             print(labelmap.shape)
             for i in self.dynamic_indices: 
                 staticmap[labelmap==i] = 1
-            out['SEGMENTATION'] = torch.tensor(staticmap).permute(1,0).unsqueeze(0)
+            bseg = torch.tensor(staticmap).permute(1,0).unsqueeze(0)
+            bseg = F.interpolate(bseg.unsqueeze(0), size = (self.resolution, self.resolution), mode = "bilinear", align_corners=False).squeeze(0)
+            out['SEGMENTATION']
             print(f"{self.images[index]}-{self.seg[index]} found: {[(x, self.label_dict.get(x)) for x in np.unique(labelmap).tolist()]}")
             print(out['SEGMENTATION'].shape)
         return out
