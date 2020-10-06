@@ -55,7 +55,7 @@ class ImageDataset(BaseDataset):
         out = {'VIDEO': image.unsqueeze(0)}
 
         if self.use_segmentation: 
-            labelmap = np.array(Image.open(self.seg[index]), dtype = np.long)[:,:,1] +1 #indices are in red channel, shifted by 1 
+            labelmap = np.array(Image.open(self.seg[index]), dtype = np.long)[:,:,0] +1 #indices are in red channel, shifted by 1 
             staticmap = np.zeros_like(labelmap)
             print(labelmap.shape)
             for i in self.dynamic_indices: 
