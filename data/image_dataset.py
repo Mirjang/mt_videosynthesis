@@ -28,10 +28,20 @@ class ImageDataset(BaseDataset):
         #     ])
         # else: 
         #     self.augmentation = None
-        self.use_segmentation = opt.use_segmentation
+        self.use_segmentation = opt.use_segmentation or opt.masked_update
         self.images = glob.glob(os.path.join(self.root, "frame_*"))
         self.seg = glob.glob(os.path.join(self.root, "seg_*"))
         self.len = int(min(opt.max_dataset_size, len(self.images)))
+
+        if self.use_segmentation: 
+            with open("./data/cocostuff_labels_dynamic.txt") as f: 
+                #self.dynamic_indices = torch.tensor([int(x.split(':')[0]) for x in f.read().split('\n')])
+                self.dynamic_dict = {int(x.split(':')[0]): x.split(':')[1] for x in f.read().split('\n')}
+                self.dynamic_indices = self.dynamic_dict.keys()
+              
+            with open("./data/cocostuff_labels.txt") as f: 
+                self.label_dict = {int(x.split(':')[0]): x.split(':')[1] for x in f.read().split('\n')}
+
 
     def __len__(self): 
         return self.len
@@ -42,9 +52,15 @@ class ImageDataset(BaseDataset):
         image = F.interpolate(image.unsqueeze(0), size = (self.resolution, self.resolution), mode = "bilinear", align_corners=False).squeeze(0) *255
         image = image.permute(1,2,0) #w,h,c
         out = {'VIDEO': image.unsqueeze(0)}
-        # if self.use_segmentation: 
-        #     out['SEGMENTATION'] = probs
 
+        if self.use_segmentation: 
+            labelmap = transforms.ToTensor()(Image.open(self.seg[index]))
+            staticmap = torch.zeros_like(labelmap)
+            for i in self.dynamic_indices: 
+                staticmap[labelmap==i] = 1
+            out['SEGMENTATION'] = staticmap.unsqueeze(0)
+            print(f"found: {[(x, self.label_dict[x]) for x in torch.unique(labelmap).tolist()]}")
+            
         return out
 
 
