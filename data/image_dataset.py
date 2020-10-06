@@ -57,7 +57,7 @@ class ImageDataset(BaseDataset):
         if self.use_segmentation: 
             labelmap = np.array(Image.open(self.seg[index]), dtype = np.long)
             staticmap = np.zeros_like(labelmap)
-            print(labelmap.size)
+            print(labelmap.shape)
             for i in self.dynamic_indices: 
                 staticmap[labelmap==i] = 1
             out['SEGMENTATION'] = torch.tensor(staticmap).unsqueeze(0)
