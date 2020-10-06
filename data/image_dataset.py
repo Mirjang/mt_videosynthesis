@@ -61,10 +61,10 @@ class ImageDataset(BaseDataset):
             for i in self.dynamic_indices: 
                 staticmap[labelmap==i] = 1
             bseg = torch.tensor(staticmap).permute(1,0).unsqueeze(0)
-            bseg = F.interpolate(bseg.unsqueeze(0), size = (self.resolution, self.resolution), mode = "bilinear", align_corners=False).squeeze(0)
-            out['SEGMENTATION']
-            print(f"{self.images[index]}-{self.seg[index]} found: {[(x, self.label_dict.get(x)) for x in np.unique(labelmap).tolist()]}")
-            print(out['SEGMENTATION'].shape)
+            bseg = F.interpolate(bseg.unsqueeze(0).float(), size = (self.resolution, self.resolution), mode = "bilinear", align_corners=False).squeeze(0).round()
+            out['SEGMENTATION'] = bseg
+            # print(f"{self.images[index]}-{self.seg[index]} found: {[(x, self.label_dict.get(x)) for x in np.unique(labelmap).tolist()]}")
+            # print(out['SEGMENTATION'].shape)
         return out
 
 
