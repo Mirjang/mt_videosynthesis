@@ -30,8 +30,8 @@ class ImageDataset(BaseDataset):
         # else: 
         #     self.augmentation = None
         self.use_segmentation = opt.use_segmentation or opt.masked_update
-        self.images = glob.glob(os.path.join(self.root, "frame_*"))
-        self.seg = glob.glob(os.path.join(self.root, "seg_*"))
+        self.images = glob.glob(os.path.join(self.root, "gaugan_output*"))
+        self.seg = glob.glob(os.path.join(self.root, "gaugan_input*"))
         self.len = int(min(opt.max_dataset_size, len(self.images)))
 
         if self.use_segmentation: 
