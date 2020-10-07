@@ -1,7 +1,7 @@
 set -ex
 
 # GPU
-GPU_ID=-1
+GPU_ID=2
 
 if [[ $(nvidia-smi | grep "^|    $GPU_ID    ") ]]; then
     read -p "GPU currently in use, continue? " -n 1 -r
