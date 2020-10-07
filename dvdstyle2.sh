@@ -34,7 +34,7 @@ RESOLUTION=128
 FPS=25
 GENERATOR=style2
 
-NAME=${DATASET}_${MODEL}_${GENERATOR}_${RESOLUTION}
+NAME=${DATASET}_${MODEL}_${GENERATOR}_${RESOLUTION}_noiseemb
 # git add -A 
 # git status | grep modified
 # if [ $? -eq 0 ]

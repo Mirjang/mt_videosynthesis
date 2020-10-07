@@ -424,7 +424,7 @@ class DvdStyleConditionalGenerator(nn.Module):
         return y
 
 class DvdStyle2(nn.Module):
-    def __init__(self, input_nc = 3, latent_dim=2,depth = 4,up_blocks_per_rnn = 1, n_grulayers = 1,style_dim = 256, ch=8, nframes=48, step_frames = 1, trajgru = False):
+    def __init__(self, input_nc = 3, latent_dim=2,depth = 4,up_blocks_per_rnn = 1, noise_dim = 1, n_grulayers = 1,style_dim = 256, ch=8, nframes=48, step_frames = 1, trajgru = False):
         super().__init__()
         self.step_frames = step_frames
         self.latent_dim = latent_dim
@@ -435,6 +435,7 @@ class DvdStyle2(nn.Module):
         self.depth = depth
         self.n_grulayers = n_grulayers
         self.skip_rnn = up_blocks_per_rnn
+        self.noise_dim = noise_dim
 
         gru_kernels = [3,5,3][:n_grulayers]
         gru_hiddens = np.array([1,1,1])[:n_grulayers]
@@ -460,21 +461,22 @@ class DvdStyle2(nn.Module):
             )
         self.input = sg2model.ConstantInput(ch*8,size=latent_dim)
 
-        rnn = []
-        conv_fp = []  
+      
+        self.rnn = nn.ModuleList()
+        self.conv = nn.ModuleList()
+        self.noise_emb = nn.ModuleList()
         for d in range(self.depth): 
             c = CH[d]
             if d % self.skip_rnn == 0: 
-                rnn.append(ConvGRU(c * ch, hidden_sizes=c * ch * gru_hiddens, kernel_sizes=gru_kernels, n_layers=n_grulayers, trajgru=trajgru),)
+                self.rnn.append(ConvGRU(c * ch, hidden_sizes=c * ch * gru_hiddens, kernel_sizes=gru_kernels, n_layers=n_grulayers, trajgru=trajgru),)
             else: 
-                rnn.append(None)
-            conv = nn.ModuleList()
-            conv_fp.append(StyledConv(c * ch, c * ch, 3, style_dim, upsample=True))
-            conv_fp.append(StyledConv(c * ch, CH[d+1] * ch, 3, style_dim, upsample=False))
+                self.rnn.append(None)
+            conv = nn.ModuleList()  
+            conv.append(StyledConv(c * ch, c * ch, 3, style_dim, upsample=True, noise=None))
+            conv.append(StyledConv(c * ch, CH[d+1] * ch, 3, style_dim, upsample=False, noise=None))
+            self.conv.append(conv)
 
-            #conv_fp.append(conv)
-        self.rnn = nn.ModuleList(rnn)
-        self.conv = nn.ModuleList(conv_fp)
+            self.noise_emb.append(StyledConv(self.noise_dim, self.noise_dim, 3, style_dim, upsample=False, noise=None))
 
         self.colorize = sg2model.ToRGB(1*ch, style_dim, upsample=False)
         #self.colorize = nn.Conv2d(1 * ch, 3, kernel_size=(3, 3), padding=1)
@@ -504,14 +506,8 @@ class DvdStyle2(nn.Module):
 
         y = y.unsqueeze(1).expand(-1, self.nframes, -1, -1, -1) #B x T x C x W x H
 
-        for depth, (rnn, conv) in enumerate(zip(self.rnn, self.conv)): 
-            if rnn: 
-                frame_list = []
-                frame_list = [encoder_list[depth]]
-                if depth > 0:
-                    _, C, W, H = y.size()
-                    y = y.view(-1, self.nframes, C, W, H).contiguous()
-
+        for depth, (rnn, conv_list, noise_emb) in enumerate(zip(self.rnn, self.conv, self.noise_emb)): 
+            if rnn:   
                 frame_list = [[encoder_list[depth]]*self.n_grulayers]
                 for i in range(self.nframes):
                     #print(depth, i, y.shape, [x.shape for x in frame_list[-1]])
@@ -521,16 +517,20 @@ class DvdStyle2(nn.Module):
                     frame_hidden_list.append(i[-1].unsqueeze(0))
                 y = torch.cat(frame_hidden_list, dim=0) # T x B x ch x ld x ld
                 y = y.permute(1, 0, 2, 3, 4).contiguous() # B x T x ch x ld x ld
-                *_, C, W, H = y.size()
-                y = y.view(-1, C, W, H)
+          
 
-            # for layer in conv: 
-            #     y = layer(y, style) # BT, C, W, H
-            y = self.conv[2*depth](y, style) # BT, C, W, H
-            y = self.conv[2*depth +1](y, style) # BT, C, W, H
+            *_, C, W, H = y.size()
+            y = y.view(-1, C, W, H)
+            
+            noise = noise_emb(torch.empty((y.size(0), self.noise_dim, W, H), device=x.device).normal_(), style)
+            y = y * noise
+            for conv in conv_list: 
+                y = conv(y, style) # BT, C, W, H
+            _, C, W, H = y.size()
+            y = y.view(-1, self.nframes, C, W, H).contiguous()
 
-
-        BT, C, W, H = y.size()
+        *_, C, W, H = y.size()
+        y = y.view(-1, C, W, H)
 
         if self.step_frames > 1:
             y = y.view(-1, self.n_steps, C, W, H) # B, T/S, C, W, H
