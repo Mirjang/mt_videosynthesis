@@ -24,7 +24,7 @@ MODEL=dvdgan
 # optimizer parameters
 LR=0.0003
 BATCHSIZE=128
-SUB_BATCH=2
+SUB_BATCH=8
 RESOLUTION=64
 FPS=15
 GENERATOR=dvdgan
