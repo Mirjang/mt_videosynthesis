@@ -12,10 +12,9 @@ if [[ $(nvidia-smi | grep "^|    $GPU_ID    ") ]]; then
     fi
 fi
 VISDOM_PORT=8197
-DATASETS_DIR=/mnt/raid/patrickradner/datasets
+DATASETS_DIR=/mnt/raid/patrickradner/datasets/
 CHECKPOINT_DIR=/mnt/raid/patrickradner/checkpoints
 RESULTS_DIR=/mnt/raid/patrickradner/results
-
 
 DATASET=processed_data
 DATASET_MODE=videofolder

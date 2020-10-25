@@ -16,12 +16,7 @@ DATASETS_DIR=/mnt/raid/patrickradner/datasets/
 CHECKPOINT_DIR=/mnt/raid/patrickradner/checkpoints
 RESULTS_DIR=/mnt/raid/patrickradner/results
 
-#DATASET=movingmnist
-# DATASET=cifar10
-# DATASET_MODE=dummy
-#DATASET=UCF101
 DATASET=processed_data
-
 DATASET_MODE=videofolder
 
 # models
