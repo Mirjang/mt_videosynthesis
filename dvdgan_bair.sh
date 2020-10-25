@@ -29,14 +29,14 @@ RESOLUTION=64
 FPS=15
 GENERATOR=dvdgan
 
-#NAME=${DATASET}_${MODEL}_${GENERATOR}_${RESOLUTION}_noise_cgan_aux_seg
 NAME=${DATASET}_${MODEL}_${GENERATOR}_${RESOLUTION}_base
 git add -A 
 git commit -m $NAME
 DISPNAME=${NAME}
 # vid settings
 SKIP=1
-LEN=1.0
+LEN=2
+CLIP=2.5
 
 FREQ=200
 DISP_FRAMES=16
