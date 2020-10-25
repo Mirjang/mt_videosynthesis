@@ -1,4 +1,6 @@
+from random import randint
 import torch
+from torch._C import device
 import torch.nn as nn
 from torch.nn import functional as F
 from torch.nn.modules.container import ModuleList
@@ -464,7 +466,7 @@ class DvdStyle2(nn.Module):
       
         self.rnn = nn.ModuleList()
         self.conv = nn.ModuleList()
-        self.noise_emb = nn.ModuleList()
+
         for d in range(self.depth): 
             c = CH[d]
             if d % self.skip_rnn == 0: 
@@ -476,8 +478,6 @@ class DvdStyle2(nn.Module):
             conv.append(StyledConv(c * ch, CH[d+1] * ch, 3, style_dim, upsample=False, noise=None))
             self.conv.append(conv)
 
-            self.noise_emb.append(StyledConv(self.noise_dim, self.noise_dim, 3, style_dim, upsample=False, noise=None))
-
         self.colorize = sg2model.ToRGB(1*ch, style_dim, upsample=False)
         #self.colorize = nn.Conv2d(1 * ch, 3, kernel_size=(3, 3), padding=1)
         #decode 1 RNN step into multiple frames using 3x3 convs
@@ -488,7 +488,9 @@ class DvdStyle2(nn.Module):
                 nn.Conv3d(1*ch, 1*ch, kernel_size=(3,3,3), padding=1),
             )
 
-    def forward(self, x, noise = None):
+    def forward(self, x, noise = None, noise_scale = None):
+        if not noise_scale: 
+            noise_scale = torch.empty(x.size(0), device = x.device).uniform_() * 5
         x = x * 2 - 1
         if len(x.shape) == 5: # B x T x 3 x W x H -> B x 3 x W x H (first frame)
             x = x[:,0,...]
@@ -506,7 +508,7 @@ class DvdStyle2(nn.Module):
 
         y = y.unsqueeze(1).expand(-1, self.nframes, -1, -1, -1) #B x T x C x W x H
 
-        for depth, (rnn, conv_list, noise_emb) in enumerate(zip(self.rnn, self.conv, self.noise_emb)): 
+        for depth, (rnn, conv_list) in enumerate(zip(self.rnn, self.conv)): 
             if rnn:   
                 frame_list = [[encoder_list[depth]]*self.n_grulayers]
                 for i in range(self.nframes):
@@ -518,14 +520,24 @@ class DvdStyle2(nn.Module):
                 y = torch.cat(frame_hidden_list, dim=0) # T x B x ch x ld x ld
                 y = y.permute(1, 0, 2, 3, 4).contiguous() # B x T x ch x ld x ld
           
+            *_,T, C, W, H = y.size()
+            # if depth < len(self.rnn): 
+            #     noise = [torch.empty((y.size(0), 1, self.noise_dim, W, H), device=x.device).normal_()]
+                
+            #     for i in range(T): 
+            #         t = i/T * np.pi
+            #         noise.append(torch.sin(t * noise[0] * noise_scale))
+            #     noise = torch.cat(noise, dim = 1)
+            # else: 
+            #     noise = torch.zero((y.size(0), 1, W, H))
 
-            *_, C, W, H = y.size()
             y = y.view(-1, C, W, H)
             
-            noise = noise_emb(torch.empty((y.size(0), self.noise_dim, W, H), device=x.device).normal_(), style)
-            y = y * noise
+            
             for conv in conv_list: 
+               # y = conv(y, style, noise = noise.view(-1,1,W,H)) # BT, C, W, H
                 y = conv(y, style) # BT, C, W, H
+
             _, C, W, H = y.size()
             y = y.view(-1, self.nframes, C, W, H).contiguous()
 
@@ -657,6 +669,7 @@ class DvdGanModel(BaseModel):
             self.loss_Gaux = 0
 
         if self.isTrain:
+
             self.ndsframes = opt.dvd_spatial_frames
             assert self.nframes > self.ndsframes+1, "number of frames sampled for disc should be leq to number of total frames generated (length-1)"
        
@@ -715,10 +728,21 @@ class DvdGanModel(BaseModel):
         self.target_video = self.target_video[:, :min(T,self.nframes),...]
 
     def forward(self, frame_length = -1, train = True):
+        nFrames = frame_length if frame_length>0 else self.nframes
         if hasattr(self.netG, "nFrames"):
-            self.netG.nFrames = frame_length if frame_length>0 else self.nframes
- 
-        self.predicted_video = self.netG(self.input)
+            self.netG.nFrames = nFrames
+        # grad_frames = []
+        # if train:
+        #     if self.opt.fast_sample_len > 0: 
+        #         s = randint(0, self.nframes - self.opt.fast_sample_len)
+        #         grad_frames = range(s, s+ self.opt.fast_sample_len)
+        #     else: 
+        #         grad_frames = range(nFrames)
+        # self.grad_frames = grad_frames
+        # if self.opt.generator.startswith("style2"): 
+        #     self.predicted_video = self.netG(self.input, grad_frames = grad_frames)
+        # else: 
+        self.predicted_video = self.netG(self.input) 
         if self.opt.masked_update: 
             B,T,C,W,H = self.predicted_video.size()
             self.predicted_video = torch.where(self.mask.byte().unsqueeze(1).expand(B,T,C,W,H),self.predicted_video, self.target_video[:,:1,...].expand(B,T,C,W,H))
@@ -917,6 +941,7 @@ class DvdGanModel(BaseModel):
                 diagnose_network(self.netDt,"Dt")
 
     def optimize_parameters(self, epoch, verbose = False):
+    
         # update Generator every n_critic steps
         if self.iter % self.opt.n_critic == 0:
             nn.utils.clip_grad_norm_(self.netG.parameters(), self.opt.clip_grads)

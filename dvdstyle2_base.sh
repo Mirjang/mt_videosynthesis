@@ -1,7 +1,7 @@
 set -ex
 
 # GPU
-GPU_ID=2
+GPU_ID=1
 
 if [[ $(nvidia-smi | grep "^|    $GPU_ID    ") ]]; then
     read -p "GPU currently in use, continue? " -n 1 -r
@@ -44,7 +44,7 @@ NAME=${DATASET}_${MODEL}_${GENERATOR}_${RESOLUTION}_base
 DISPNAME=${NAME}
 # vid settings
 SKIP=1
-LEN=.6
+LEN=1
 CLIP=2.5
 
 FREQ=100

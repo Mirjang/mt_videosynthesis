@@ -45,5 +45,8 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--pretrain_epochs', type=int, default=0, help='train discriminator for n epochs before training generator')
         parser.add_argument('--max_val_dataset_size', type=int, default=1000, help='cap validation set size')
 
+        parser.add_argument('--fast_sample_len', type=int, default=-1, help='compute grads for a small time window')
+
+
         self.isTrain = True
         return parser
