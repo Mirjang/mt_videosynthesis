@@ -141,6 +141,7 @@ class VideofolderDataset(BaseDataset):
         for dir in dirs: 
             self.samples += [os.path.join(dir, sub_dir) for sub_dir in glob.glob(os.path.join(dir,"*"))]
 
+      #  print(self.root, dirs, self.samples)
         self.len = int(min(opt.max_dataset_size, len(self.samples)))
         self.nframes = int(opt.fps * opt.max_clip_length // opt.skip_frames)
         self.resolution = opt.resolution
@@ -166,6 +167,8 @@ class VideofolderDataset(BaseDataset):
             dir = self.samples[index]
             
             frame_list = [transforms.ToTensor()(Image.open(frame).convert("RGB")) for frame in  glob.glob(os.path.join(dir,"*.png"))]
+            frame_list += [transforms.ToTensor()(Image.open(frame).convert("RGB")) for frame in  glob.glob(os.path.join(dir,"*.jpg"))]
+    
             frames = torch.stack(frame_list, dim = 0).permute(0,2,3,1)*255
 
             if frames.shape[0] < self.nframes*self.skip_frames: 
