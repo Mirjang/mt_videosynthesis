@@ -25,14 +25,28 @@
 </head>
 
 <body>
+    <!-- Masthead -->
+    <header class="masthead text-white text-center">
+        <div class="container">
+          <div class="overlay"></div>
+          <div class="row">
+            <div class="offset-md-1 col-md-10">
+              <video class="video video-header" loop="loop" autoplay muted>
+                <source src="vids/test.webm" type="video/webm" />
+                Your browser doesn't support .webm video
+              </video>
+            </div>
+            <div class="col-xl-9 mx-auto">
+              <br /><br />
+              <h1 class="mb-5"><span class="title">Master’s Thesis: [TBD] - Supplementary Material</span></h1>
+            </div>
+          </div>
+        </div>
+      </header>
+
 
     <!-- cvt mp4s to webms: (needed a place to store that)-->
     <!-- ffmpeg -i input.mp4 -c:v libvpx-vp9 -crf 30 -b:v 0 -b:a 128k -c:a libopus output.webm -->
-    <div class="row myrow">
-        <div class="offset-md-1 col-md-10">
-          <h1>Master’s Thesis: [TBD] - Supplementary Material</h1>
-        </div>
-    </div>
 
     <video class="video video-grid img-fluid" loop="loop" autoplay="" muted="">
         <source src="vids/test.webm" type="video/webm">
@@ -48,17 +62,13 @@
               </p>
             </div>
           </div>
-          <div class="row">
-            <div class="offset-md-2 col-md-8 text-white">
-              <img class="img-fluid mb-3" src="img/01_intro_grid.jpg" alt="" width="1080px">
-            </div>
-          </div>
+  
     
-
+<!-- 
           <div class="offset-md-1 col-md-8 row iframe-container col-md-10">
             <iframe src="https://www.youtube.com/embed/2CoQRf5qXWY" frameborder="0"
               allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-          </div>
+          </div> -->
 
       </section>
 
