@@ -17,6 +17,55 @@ import numbers
 import torch
 from torch import nn
 from torch.nn import functional as F
+IMG_EXTENSIONS = [
+    '.jpg', '.JPG', '.jpeg', '.JPEG',
+    '.png', '.PNG', '.ppm', '.PPM', '.bmp', '.BMP',
+]
+
+def find_classes(dir):
+    classes = [d for d in os.listdir(dir) if os.path.isdir(os.path.join(dir, d))]
+    classes.sort()
+    class_to_idx = {classes[i]: i for i in range(len(classes))}
+    return classes, class_to_idx
+
+def is_image_file(filename):
+    return any(filename.endswith(extension) for extension in IMG_EXTENSIONS)
+
+def make_dataset(dir, nframes, class_to_idx):
+    images = []
+    n_video = 0
+    n_clip = 0
+    for target in sorted(os.listdir(dir)):
+        if os.path.isdir(os.path.join(dir,target))==True:
+            n_video +=1
+            # eg: dir + '/rM7aPu9WV2Q'
+            subfolder_path = os.path.join(dir, target) 
+            for subsubfold in sorted(os.listdir(subfolder_path) ):
+                if os.path.isdir(os.path.join(subfolder_path, subsubfold) ):
+                	# eg: dir + '/rM7aPu9WV2Q/1'
+                    n_clip += 1
+                    subsubfolder_path = os.path.join(subfolder_path, subsubfold) 
+                    
+                    item_frames = []
+                    i = 1
+                    for fi in sorted( os.listdir(subsubfolder_path) ):
+                        if  is_image_file(fi):
+                        # fi is an image in the subsubfolder
+                            file_name = fi
+                            # eg: dir + '/rM7aPu9WV2Q/1/rM7aPu9WV2Q_frames_00086552.jpg'
+                            file_path = os.path.join(subsubfolder_path,file_name) 
+                            item = (file_path, class_to_idx[target])
+                            item_frames.append(item)
+                            if i %nframes == 0 and i >0 :
+                                images.append(item_frames) # item_frames is a list containing n frames. 
+                                item_frames = []
+                            i = i+1
+    print('number of long videos:')
+    print(n_video)
+    print('number of short videos')
+    print(n_clip)
+    return images
+
 
 #https://discuss.pytorch.org/t/is-there-anyway-to-do-gaussian-filtering-for-an-image-2d-3d-in-pytorch/12351/7
 class GaussianSmoothing(nn.Module):
@@ -121,9 +170,8 @@ def motion_segmentation(x, eps = 1e-3, channel_dim = -1, num_offsets = 3, offset
         seg = seg > 1./smooth_kernel
     return seg.long()
 
-
 #expected header in info.csv: video_id,file_name,resolution,fps,start,end
-class VideofolderDataset(BaseDataset): 
+class SkyDataset(BaseDataset): 
 
    #init when not using cyclegan framework
    # def init(self,root, clips_file ="info.csv",max_clip_length = 10.0, fps = 30, max_size = sys.maxsize, ): 
@@ -137,15 +185,14 @@ class VideofolderDataset(BaseDataset):
         self.skip_frames = opt.skip_frames
         self.nframes = int(opt.fps * opt.max_clip_length // opt.skip_frames)
 
-        dirs = glob.glob(os.path.join(self.root,"*"))
-        self.samples = []
-        for dir in dirs: 
-            self.samples += [os.path.join(dir, sub_dir) for sub_dir in glob.glob(os.path.join(dir,"*"))]
+        classes, class_to_idx = find_classes(self.root)
+        imgs = make_dataset(self.root, self.nframes,  class_to_idx)
+        if len(imgs) == 0:
+            raise(RuntimeError("Found 0 images in subfolders of: " + self.root + "\n"
+                               "Supported image extensions are: " + 
+                               ",".join(IMG_EXTENSIONS)))
 
-        def valid_seq(dir): 
-            return len(glob.glob(dir +"/*")) >= self.nframes- 5
-
-        self.samples = [s for s in self.samples if valid_seq(s)]
+        self.samples = imgs
 
       #  print(self.root, dirs, self.samples)
         self.len = int(min(opt.max_dataset_size, len(self.samples)))
@@ -170,9 +217,7 @@ class VideofolderDataset(BaseDataset):
         with torch.no_grad(): 
             out = {}
             dir = self.samples[index]
-            
-            frame_list = [transforms.ToTensor()(Image.open(frame).convert("RGB")) for frame in  glob.glob(os.path.join(dir,"*.png"))]
-            frame_list += [transforms.ToTensor()(Image.open(frame).convert("RGB")) for frame in  glob.glob(os.path.join(dir,"*.jpg"))]
+            frame_list = [transforms.ToTensor()(Image.open(frame).convert("RGB")) for frame,label in  dir]
 
             frames = torch.stack(frame_list, dim = 0).permute(0,2,3,1)*255
 

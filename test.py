@@ -9,6 +9,7 @@ import numpy as np
 from PIL import Image
 import time
 import re
+from torchvision.utils import save_image
 
 import torchvision
 
@@ -56,6 +57,7 @@ if __name__ == '__main__':
     total_runs = dataset_size
     warm_up = 50
     block = 0
+    vid_ctr = 0 
     # test with eval mode. This only affects layers like batchnorm and dropout.
     out_buffer = []
     if opt.eval:
@@ -93,6 +95,15 @@ if __name__ == '__main__':
             
 
             grid = out_buffer[:opt.grid**2]
+            
+            step = 1
+            for frames in grid:             
+                os.makedirs(os.path.join(web_dir, str(vid_ctr)), exist_ok=True)
+                for x in range(0, frames.size(1), int(step)): 
+                    out_file = os.path.join(web_dir,str(vid_ctr), "frame_" + str(x) + ".png")
+                    save_image(frames[0,x:x+1].float(), out_file, normalize=True, padding=0)
+                vid_ctr += 1
+
             out_buffer = out_buffer[opt.grid**2: ]
             rows = []
             for x in range(opt.grid): 

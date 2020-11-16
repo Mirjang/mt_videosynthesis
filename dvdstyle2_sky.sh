@@ -18,7 +18,7 @@ RESULTS_DIR=/mnt/raid/patrickradner/results
 
 
 DATASET=sky_timelapse
-DATASET_MODE=videofolder
+DATASET_MODE=sky
 
 # models
 MODEL=dvdgan
@@ -31,12 +31,8 @@ FPS=25
 GENERATOR=style2
 
 NAME=${DATASET}_${MODEL}_${GENERATOR}_${RESOLUTION}_base
-# git add -A 
-# git status | grep modified
-# if [ $? -eq 0 ]
-# then
-#     git commit -m $NAME
-# fi
+
+
 DISPNAME=${NAME}
 # vid settings
 SKIP=1

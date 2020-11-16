@@ -19,7 +19,7 @@ def redx(image, col = [255,0,0], thickness = 3, alpha = .1):
     #print(image.shape, x.shape, y.shape, col.shape, image[:,x,y].shape)
     return image
 
-#samples tenstor and compares consecutive images, returns false, if all samples show constant (difference < eps) imaes
+#samples tenstor and compares consecutive images, returns false, if all samples show constant (difference < eps) images
 def has_motion(x, n_tries = 8, dist = 5, eps = 1e-3): 
     T, C, H, W = x.shape
     P = H*W
@@ -31,7 +31,7 @@ def has_motion(x, n_tries = 8, dist = 5, eps = 1e-3):
         if i + dist >= T: # vid is too short 
             return False 
         c = torch.abs(x[i]- x[i+dist]) > eps
-        if torch.sum(c) > .1*P: #significant cnage in at least 10% of pixels should be good enough 
+        if torch.sum(c) > .1*P: #significant change in at least 10% of pixels should be good enough 
             return True
     return False
 
