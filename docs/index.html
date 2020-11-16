@@ -1,0 +1,70 @@
+<html lang="en">
+
+ <!--"most of the syntax is "borrowed" from https://saic-mdal.github.io/deep-landscape/ i have no idea what it does, but apparently you cant embed videos using markup and i dont wana lean html:)-->
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <meta name="author" content="P. Radner">
+
+
+  <title>Style Based video prediction</title>
+
+
+  <!-- Bootstrap core CSS -->
+  <link href="vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+
+  <!-- Custom fonts for this template -->
+  <link href="vendor/font-awesome/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+  <link href="vendor/simple-line-icons/css/simple-line-icons.css" rel="stylesheet" type="text/css">
+  <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700,300italic,400italic,700italic" rel="stylesheet"
+    type="text/css">
+
+  <!-- Custom styles for this template -->
+  <link href="css/landing-page.min.css" rel="stylesheet">
+
+</head>
+
+<body>
+
+    <!-- cvt mp4s to webms: (needed a place to store that)-->
+    <!-- ffmpeg -i input.mp4 -c:v libvpx-vp9 -crf 30 -b:v 0 -b:a 128k -c:a libopus output.webm -->
+    <div class="row myrow">
+        <div class="offset-md-1 col-md-10">
+          <h1>Master’s Thesis: [TBD] - Supplementary Material</h1>
+        </div>
+    </div>
+
+    <video class="video video-grid img-fluid" loop="loop" autoplay="" muted="">
+        <source src="vids/test.webm" type="video/webm">
+    </video>
+
+    <section class="showcase">
+        <div class="container">
+          <div class="row myrow">
+            <div class="offset-md-1 col-md-10">
+              <h2>Abstract</h2>
+              <p class="lead mb-0" align="justify">
+                "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
+              </p>
+            </div>
+          </div>
+          <div class="row">
+            <div class="offset-md-2 col-md-8 text-white">
+              <img class="img-fluid mb-3" src="img/01_intro_grid.jpg" alt="" width="1080px">
+            </div>
+          </div>
+    
+
+          <div class="offset-md-1 col-md-8 row iframe-container col-md-10">
+            <iframe src="https://www.youtube.com/embed/2CoQRf5qXWY" frameborder="0"
+              allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+          </div>
+
+      </section>
+
+  <!-- Bootstrap core JavaScript -->
+  <script src="vendor/jquery/jquery.min.js"></script>
+  <script src="vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>
