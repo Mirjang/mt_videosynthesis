@@ -129,5 +129,4 @@ dmypy.json
 .pyre/
 
 *.mp4
-*.webm
 *.csv
