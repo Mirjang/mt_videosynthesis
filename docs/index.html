@@ -58,8 +58,16 @@
             <div class="offset-md-1 col-md-10">
               <h2>Abstract</h2>
               <p class="lead mb-0" align="justify">
-                "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
-              </p>
+                In this work a novel architecture is developed to perform video prediction. In particular the task of "bringing landscape images to live" is investigated.
+                 This is an especially challenging video prediction task, as only a single input image is given and the model has to predict what might happen next in the
+                  scene, for example clouds moving or flowing rivers and waterfalls. The changes per frame in these types of videos are usually very small detailed.
+                   As no flow or segmentation is given the model also has to learn, which image elements to animate. 
+                <\br><\br>
+                The proposed architecture combines recurrent, feature pyramid architectures from previous works such as DVD-GAN with styled convolutions introduced by
+                 StyleGAN to predict the final video. 
+                <\br><\br>
+                A new dataset for the task of "bringing landscape images to live", which focuses on fine details rather than global changes. The proposed model is evaluated
+                gainst state-of-the-art baselines and is shown to also work on standard video prediction benchmarks, while requiring smaller compute resources for training.              </p>
             </div>
           </div>
   
