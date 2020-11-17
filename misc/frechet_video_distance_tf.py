@@ -23,6 +23,7 @@ from __future__ import absolute_import
 from __future__ import division
 
 from __future__ import print_function
+import glob
 
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # or any {'0', '1', '2'}
@@ -160,53 +161,55 @@ def fvd(real_np, fake_np):
 
 #CUDA_VISIBLE_DEVICES="" python misc/frechet_video_distance_tf.py /mnt/raid/patrickradner/datasets/yt/river_relaxing/ val_info.csv
 
+def load_vids(dir, resolution = 224,n_frames = 25, file_type ="*.mp4"): 
+  np_tensor = None
+  it = 0
+  for file in glob.glob(os.path.join(dir, file_type)): 
+    it += 1
+    frames, _, info = torchvision.io.read_video(file, pts_unit="sec")
+    frames = F.interpolate(frames.permute(0,3,1,2).float(), size = (resolution+1, resolution+1), mode = "bilinear", align_corners=False)
+    frames = frames[:n_frames,...].permute(0,2,3,1).unsqueeze(0)
+
+    if frames.size(1) < n_frames: 
+        continue
+    if np_tensor is None:
+        np_tensor = frames.numpy()
+    else: 
+        np_tensor = np.concatenate((np_tensor, frames.numpy()), axis = 0)  
+
+    if it % 50 == 0: 
+        print(f"loading file {file}")
+
+  return np_tensor
+
+
 if __name__ == "__main__":
-    import sys
-    import os
-    import torchvision
-    import pandas as pd
-    import numpy as np
-    import torch.nn.functional as F
+  import sys
+  import os
+  import torchvision
+  import pandas as pd
+  import numpy as np
+  import torch.nn.functional as F
 
-    if len(sys.argv) < 2: 
-        print(f"SYNTAX: {sys.argv[0]} root [filename.csv]")
-        sys.exit(-1)
-    root = sys.argv[1]
-    file = "val_info.csv"
-    if len(sys.argv) > 2: 
-        file = sys.argv[2]
-    out_file = file.split(".")[0] + ".npy"
-    df = pd.read_csv(os.path.join(root,file))
-    vid_length = 1.
-    np_tensor = None
-    resolution = 224
-    n_frames = 25
+  if len(sys.argv) < 2: 
+      print(f"SYNTAX: {sys.argv[0]} dir1 dir2")
+      sys.exit(-1)
+  dir1 = sys.argv[1]
+  dir2 = sys.argv[2]
 
-    # for it, clip in df.iterrows(): 
-    #     if it % 50 == 0: 
-    #         print(f"loading file {it} / {df.shape[0]}")
+  # load b first as its more likely to be bad user input (usually called from scripts where a is fixed)
+  b = load_vids(dir2)
+  print(f"done loading B {b.shape}")
 
-    #     if it > 15: 
-    #         break
+  a = load_vids(dir1)
+  print(f"done loading A {a.shape}")
 
-    #     start = clip['start']
-    #     end = min(start + vid_length, clip['end'])
-    #     frames, _, info = torchvision.io.read_video(os.path.join(root,clip['file_name']), start, end, pts_unit="sec")
-    #     frames = F.interpolate(frames.permute(0,3,1,2).float(), size = (resolution+1, resolution+1), mode = "bilinear", align_corners=False)
-    #     frames = frames[:n_frames,...].permute(0,2,3,1).unsqueeze(0)
-    #     if frames.size(1) < n_frames: 
-    #         continue
-    #     if np_tensor is None:
-    #         np_tensor = frames.numpy()
-    #     else: 
-    #         np_tensor = np.concatenate((np_tensor, frames.numpy()), axis = 0)
-    # print(f"done loading videos {np_tensor.shape}")
 
-    #print("FVD is: %.2f." % fvd(np_tensor,np_tensor))
+  print("FVD is: %.2f." % fvd(a,b))
 
-    a = np.random.rand(16,15,255,255,3) * 255
-    b = np.random.rand(16,15,255,255,3) * 255
-    print("FVD is: %.2f." % fvd(a,b))
+  # a = np.random.rand(16,15,255,255,3) * 255
+  # b = np.random.rand(16,15,255,255,3) * 255
+  # print("FVD is: %.2f." % fvd(a,b))
 
 
 # #    out = tf.make_ndarray(embedding)
