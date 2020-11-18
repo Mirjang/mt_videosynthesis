@@ -169,7 +169,7 @@ def load_vids(dir, resolution = 224,n_frames = 25, file_type ="*.mp4", B = 200):
   
     frames, _, info = torchvision.io.read_video(file, pts_unit="sec")
     frames = F.interpolate(frames.permute(0,3,1,2).float(), size = (resolution+1, resolution+1), mode = "bilinear", align_corners=False)
-    frames = frames[:n_frames,...].permute(0,2,3,1).unsqueeze(0) / 255
+    frames = frames[:n_frames,...].permute(0,2,3,1).unsqueeze(0)
     #print(frames.min(), frames.max())
     if frames.size(1) < n_frames: 
         continue
@@ -198,7 +198,7 @@ if __name__ == "__main__":
       sys.exit(-1)
   dir1 = sys.argv[1]
   dir2 = sys.argv[2]
-  B = 16
+  B = 256
   # load b first as its more likely to be bad user input (usually called from scripts where a is fixed)
   b = load_vids(dir2, B = B)
   print(f"done loading B {b.shape}")
