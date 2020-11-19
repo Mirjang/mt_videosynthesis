@@ -73,39 +73,7 @@
     <!-- cvt mp4s to webms: (needed a place to store that)-->
     <!-- ffmpeg -i input.mp4 -c:v libvpx-vp9 -crf 30 -b:v 0 -b:a 128k -c:a libopus output.webm -->
     <!-- for i in `ls`; do ffmpeg -i $i -c:v libvpx-vp9 -crf 30 -b:v 0 -b:a 128k -c:a libopus $i.webm ; done -->
-    <div class ="row">
-      <video class="video video-grid img-fluid" loop="loop" autoplay="" muted="">
-      <source src="vids/style128_sample/fake_block7.mp4.webm" type="video/webm">
-      </video>
-      <video class="video video-grid img-fluid" loop="loop" autoplay="" muted="">
-      <source src="vids/style128_sample/fake_block25.mp4.webm" type="video/webm">
-      </video>
-      <video class="video video-grid img-fluid" loop="loop" autoplay="" muted="">
-      <source src="vids/style128_sample/fake_block40.mp4.webm" type="video/webm">
-      </video>
-    </div>
-    <div class ="row">
-      <video class="video video-grid img-fluid" loop="loop" autoplay="" muted="">
-      <source src="vids/style128_sample/fake_block77.mp4.webm" type="video/webm">
-      </video>
-      <video class="video video-grid img-fluid" loop="loop" autoplay="" muted="">
-      <source src="vids/style128_sample/fake_block128.mp4.webm" type="video/webm">
-      </video>
-      <video class="video video-grid img-fluid" loop="loop" autoplay="" muted="">
-      <source src="vids/style128_sample/fake_block117.mp4.webm" type="video/webm">
-      </video>
-    </div>
-    <div class ="row">
-      <video class="video video-grid img-fluid" loop="loop" autoplay="" muted="">
-      <source src="vids/style128_sample/fake_block164.mp4.webm" type="video/webm">
-      </video>
-      <video class="video video-grid img-fluid" loop="loop" autoplay="" muted="">
-      <source src="vids/style128_sample/fake_block177.mp4.webm" type="video/webm">
-      </video>
-      <video class="video video-grid img-fluid" loop="loop" autoplay="" muted="">
-      <source src="vids/style128_sample/fake_block185.mp4.webm" type="video/webm">
-      </video>
-    </div>
+
 
     <section class="showcase">
         <div class="container">
@@ -129,21 +97,56 @@
           </div>
         </div>
 
+
+        <h2>Showcase: Custom Dastaset</h2>
+        <div class ="row">
+          <video class="video video-grid img-fluid" loop="loop" autoplay="" muted="">
+          <source src="vids/style128_sample/fake_block7.mp4.webm" type="video/webm">
+          </video>
+          <video class="video video-grid img-fluid" loop="loop" autoplay="" muted="">
+          <source src="vids/style128_sample/fake_block25.mp4.webm" type="video/webm">
+          </video>
+          <video class="video video-grid img-fluid" loop="loop" autoplay="" muted="">
+          <source src="vids/style128_sample/fake_block40.mp4.webm" type="video/webm">
+          </video>
+        </div>
+        <div class ="row">
+          <video class="video video-grid img-fluid" loop="loop" autoplay="" muted="">
+          <source src="vids/style128_sample/fake_block77.mp4.webm" type="video/webm">
+          </video>
+          <video class="video video-grid img-fluid" loop="loop" autoplay="" muted="">
+          <source src="vids/style128_sample/fake_block128.mp4.webm" type="video/webm">
+          </video>
+          <video class="video video-grid img-fluid" loop="loop" autoplay="" muted="">
+          <source src="vids/style128_sample/fake_block117.mp4.webm" type="video/webm">
+          </video>
+        </div>
+        <div class ="row">
+          <video class="video video-grid img-fluid" loop="loop" autoplay="" muted="">
+          <source src="vids/style128_sample/fake_block164.mp4.webm" type="video/webm">
+          </video>
+          <video class="video video-grid img-fluid" loop="loop" autoplay="" muted="">
+          <source src="vids/style128_sample/fake_block177.mp4.webm" type="video/webm">
+          </video>
+          <video class="video video-grid img-fluid" loop="loop" autoplay="" muted="">
+          <source src="vids/style128_sample/fake_block185.mp4.webm" type="video/webm">
+          </video>
+        </div>
+
+
         <div class="container">
+          <h3>Comparison</h3>
           <div class="row myrow">
-            <div class="offset-md-1 col-md-10">  
-              <h3>Comparison</h3>
-              <video width="256", height="256" class="video video-grid img-fluid" loop="loop" autoplay="" muted="">
-                  <source src="vids/bair_cmp/style/out.webm" type="video/webm">
-              </video>
-            </div>
+            <video width="256", height="256" class="video video-grid img-fluid" loop="loop" autoplay="" muted="">
+                <source src="vids/bair_cmp/style/out.webm" type="video/webm">
+            </video>
           </div>
           <div class="row myrow">
-              <video width="256", height="256" class="video video-grid img-fluid" loop="loop" autoplay="" muted="">
-                <source src="vids/bair_cmp/dvd/out.webm" type="video/webm">
-              </video>
-            </div>
+            <video width="256", height="256" class="video video-grid img-fluid" loop="loop" autoplay="" muted="">
+              <source src="vids/bair_cmp/dvd/out.webm" type="video/webm">
+            </video>
           </div>
+          <p>Comparison between our method (top) and a down-scaled version of DVD-GAN (bottom) on the bair robot pushing dataset.</p>
         </div>
       
   <!-- 
