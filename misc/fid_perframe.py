@@ -10,10 +10,10 @@ if __name__ == "__main__":
         exit()
     rd = sys.argv[1]
     fd = sys.argv[2]
-    n_frames = 30
+    n_frames = 150
 
     for i in range(n_frames): 
-        real = os.path.join(rd, str(i))
+        #real = os.path.join(rd, str(i))
         fake = os.path.join(fd, str(i))
 
-        os.system(f"python -m pytorch_fid {real} {fake} >> per_frame_fid.txt")
+        os.system(f"python -m pytorch_fid {rd} {fake} >> per_frame_fid.txt")

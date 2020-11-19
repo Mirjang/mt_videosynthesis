@@ -118,6 +118,6 @@ if __name__ == '__main__':
 
     print('mean eval time: ', (sum_time / (total_runs - warm_up)))
     # save the website
-    os.system(f"zip -r {os.path.join(web_dir, '../%s_%s_%s.zip' % (opt.name,opt.phase, opt.epoch))} {web_dir}")    
+    os.system(f"zip -q -r {os.path.join(web_dir, '../%s_%s_%s.zip' % (opt.name,opt.phase, opt.epoch))} {web_dir}")    
     print("DONE: " + opt.name)
 

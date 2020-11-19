@@ -10,7 +10,9 @@ if __name__ == "__main__":
         exit()
     indir = sys.argv[1]
     odir = sys.argv[2]
-    n_frames = 30
+    n_frames = 150
+    os.system("rm -rf odir")
+
     os.makedirs(odir, exist_ok=True)
 
     for i in range(n_frames): 

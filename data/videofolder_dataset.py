@@ -140,10 +140,10 @@ class VideofolderDataset(BaseDataset):
         dirs = glob.glob(os.path.join(self.root,"*"))
         self.samples = []
         for dir in dirs: 
-            self.samples += [os.path.join(dir, sub_dir) for sub_dir in glob.glob(os.path.join(dir,"*"))]
+            self.samples += [os.path.join(dir, sub_dir) for sub_dir in glob.glob(os.path.join(dir,"*/"))]
 
         def valid_seq(dir): 
-            return len(glob.glob(dir +"/*")) >= self.nframes- 5
+            return len(glob.glob(dir +"/*")) >= 15
 
         self.samples = [s for s in self.samples if valid_seq(s)]
 
