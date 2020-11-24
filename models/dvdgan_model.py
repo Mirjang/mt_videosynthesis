@@ -785,8 +785,8 @@ class DvdGanModel(BaseModel):
                                    retain_graph=True,
                                    create_graph=True,
                                    only_inputs=True)[0]
-
-        grad = grad.view(grad.size(0), -1)
+        
+        grad = grad.contiguous().view(grad.size(0), -1)
         grad_l2norm = torch.sqrt(torch.sum(grad ** 2, dim=1))
         d_loss_gp = torch.mean((grad_l2norm - 1) ** 2)
         # Backward + Optimize

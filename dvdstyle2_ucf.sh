@@ -28,8 +28,8 @@ DATASET_MODE=video
 MODEL=dvdgan
 # optimizer parameters
 LR=0.0003
-BATCHSIZE=8
-SUB_BATCH=1
+BATCHSIZE=32
+SUB_BATCH=2
 RESOLUTION=64
 FPS=25
 GENERATOR=style2
@@ -52,7 +52,7 @@ DISP_FRAMES=16
 VAL_SIZE=100
 VAL_SET=val #split
 #--verbose --sanity_check
-python train.py --ch_g 64 --ch_ds 32 --ch_dt 64 --conditional --start_fp 2 --max_fp 5 --up_blocks_per_rnn 1 --lr_policy cosine --gru_layers 1 --style_noise --niter 10 --niter_decay 250 --clip_grads $CLIP --n_critic 3 --lambda_S 1 --lambda_T 5 --max_clip_length $LEN --skip_frames $SKIP --validation_freq 5 --validation_set $VAL_SET --max_val_dataset_size $VAL_SIZE --init_type None --batch_size $BATCHSIZE --parallell_batch_size $SUB_BATCH --resolution $RESOLUTION --fps $FPS --dataroot $DATASETS_DIR/$DATASET --checkpoints_dir $CHECKPOINT_DIR --name $NAME --model $MODEL --generator $GENERATOR --dataset_mode $DATASET_MODE --gpu_ids $GPU_ID --lr $LR --display_port $VISDOM_PORT --display_env $DISPNAME --update_html_freq $FREQ --num_display_frames $DISP_FRAMES --print_freq $FREQ --display_freq $FREQ
+python train.py --ch_g 32 --ch_ds 32 --ch_dt 128 --start_fp 2 --max_fp 5 --up_blocks_per_rnn 1 --gru_layers 1 --lr_policy cosine --style_noise --niter 10 --niter_decay 250 --clip_grads $CLIP --n_critic 3 --lambda_S 1 --lambda_T 5 --max_clip_length $LEN --skip_frames $SKIP --validation_freq 5 --validation_set $VAL_SET --max_val_dataset_size $VAL_SIZE --init_type None --batch_size $BATCHSIZE --parallell_batch_size $SUB_BATCH --resolution $RESOLUTION --fps $FPS --dataroot $DATASETS_DIR/$DATASET --checkpoints_dir $CHECKPOINT_DIR --name $NAME --model $MODEL --generator $GENERATOR --dataset_mode $DATASET_MODE --gpu_ids $GPU_ID --lr $LR --display_port $VISDOM_PORT --display_env $DISPNAME --update_html_freq $FREQ --num_display_frames $DISP_FRAMES --print_freq $FREQ --display_freq $FREQ
 
 DATASET=gaugan
 DATASET_MODE=image

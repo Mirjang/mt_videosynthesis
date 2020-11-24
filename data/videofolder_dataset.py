@@ -130,22 +130,25 @@ class VideofolderDataset(BaseDataset):
         #torchvision.set_video_backend("video_reader")
 
     def initialize(self, opt):
-        self.root = os.path.join(opt.dataroot, opt.phase)
+        self.root = opt.dataroot if opt.validation_set == "split" else os.path.join(opt.dataroot, opt.phase)
 
         self.max_clip_length = opt.max_clip_length
         self.fps = opt.fps
         self.skip_frames = opt.skip_frames
         self.nframes = int(opt.fps * opt.max_clip_length // opt.skip_frames)
+        self.samples = glob.glob(os.path.join(self.root,"*.mp4"))
+        self.as_vids = True
+        if len(self.samples) == 0: #mb they are hidden in some sub-dir
+            dirs = glob.glob(os.path.join(self.root,"*"))
+            
+            for dir in dirs: 
+                self.samples += [os.path.join(dir, sub_dir) for sub_dir in glob.glob(os.path.join(dir,"*/"))]
+            self.as_vids = False
 
-        dirs = glob.glob(os.path.join(self.root,"*"))
-        self.samples = []
-        for dir in dirs: 
-            self.samples += [os.path.join(dir, sub_dir) for sub_dir in glob.glob(os.path.join(dir,"*/"))]
+            def valid_seq(dir): 
+                return len(glob.glob(dir +"/*")) >= 15
 
-        def valid_seq(dir): 
-            return len(glob.glob(dir +"/*")) >= 15
-
-        self.samples = [s for s in self.samples if valid_seq(s)]
+            self.samples = [s for s in self.samples if valid_seq(s)]
 
       #  print(self.root, dirs, self.samples)
         self.len = int(min(opt.max_dataset_size, len(self.samples)))
@@ -169,15 +172,18 @@ class VideofolderDataset(BaseDataset):
     def __getitem__(self, index):
         with torch.no_grad(): 
             out = {}
-            dir = self.samples[index]
-            
-            frame_list = [transforms.ToTensor()(Image.open(frame).convert("RGB")) for frame in  glob.glob(os.path.join(dir,"*.png"))]
-            frame_list += [transforms.ToTensor()(Image.open(frame).convert("RGB")) for frame in  glob.glob(os.path.join(dir,"*.jpg"))]
+            s = self.samples[index]
+            if self.as_vids: 
+                frames, _, info = torchvision.io.read_video(s,start_pts=0, end_pts=3, pts_unit="sec")
 
-            frames = torch.stack(frame_list, dim = 0).permute(0,2,3,1)*255
+            else: 
+                frame_list = [transforms.ToTensor()(Image.open(frame).convert("RGB")) for frame in  glob.glob(os.path.join(s,"*.png"))]
+                frame_list += [transforms.ToTensor()(Image.open(frame).convert("RGB")) for frame in  glob.glob(os.path.join(s,"*.jpg"))]
+
+                frames = torch.stack(frame_list, dim = 0).permute(0,2,3,1)*255
 
             if frames.shape[0] < self.nframes*self.skip_frames: 
-                print(f"ERROR: id: {index} has {frames.shape[0]}/{self.nframes*self.skip_frames} frames. File name: {dir}")
+                print(f"ERROR: id: {index} has {frames.shape[0]}/{self.nframes*self.skip_frames} frames. File name: {s}")
                 missing = self.nframes * self.skip_frames - frames.shape[0]
                 frames = torch.cat([frames, frames[-1,...].repeat(missing, 1, 1, 1)])
 
