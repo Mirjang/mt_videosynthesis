@@ -4,10 +4,6 @@ from options.train_options import TrainOptions
 from data import CreateDataLoader
 from models import create_model
 from util.visualizer import Visualizer
-import torch
-import numpy as np
-from PIL import Image
-import cv2
 
 if __name__ == '__main__':
     opt = TrainOptions().parse()
@@ -45,19 +41,6 @@ def sanity_check(opt):
     dataset_size = len(data_loader)
     t_min = 100000
     t_max = 0
-    #show some data using opencv, only works when display is available
-    # for _,data in enumerate(dataset): 
-    #     clip = data['VIDEO'][0] #first elem in batch
-    #    # print(clip.shape)
-    #     T,_,_,_ = clip.shape
-    #     #print(T)
-    #     # for i in range(min(T,150)):
-    #     #     frame = clip[i].numpy()#.transpose(1,2,0)
-    #     #     frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-    #     #     cv2.imshow("1", frame)
-    #     #     cv2.waitKey(int(1.0/float(30)*1000))
-    #     t_min = min(t_min, T)
-    #     t_max = max(t_max, T)
 
     print(f"Length: Min: {t_min} Max: {t_max}")
 

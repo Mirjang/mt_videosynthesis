@@ -1,6 +1,4 @@
-from random import randint
 import torch
-from torch._C import device
 import torch.nn as nn
 from torch.nn import functional as F
 from torch.nn.modules.container import ModuleList
@@ -9,16 +7,13 @@ from .base_model import BaseModel
 from . import networks
 import numpy as np
 import math
-import functools
 import random
 from collections import OrderedDict, namedtuple
 from dvdgan.Discriminators import SpatialDiscriminator as DvdSpatialDiscriminator
 from dvdgan.Discriminators import TemporalDiscriminator as DvdTemporalDiscriminator
-from dvdgan.Generator import Generator as DvdGenerator
 from dvdgan.GResBlock import GResBlock, GResBlock3D
 from dvdgan.ConvGRU import ConvGRU
 from dvdgan.Normalization import SpectralNorm
-from .dvdgansimple_model import GRUEncoderDecoderNet
 import stylegan2.model as sg2model
 from stylegan2.model import StyledConv
 
@@ -161,262 +156,6 @@ class DvdConditionalGenerator(nn.Module):
             self.L_aux = self.criterionAE(frame_0, x[:, :3, ...])
 
             frame_0 = frame_0.unsqueeze(1)
-
-        y = self.colorize(y)
-        y = y.view(-1, self.nframes,3, W, H) # B, T/S, C*S, W, H
-        y = torch.tanh(y)
-        y = torch.cat([frame_0, y],  dim = 1)
-        y = (y+1) / 2.0 #[-1,1] -> [0,1] for vis
-        return y
-
-class Dvd3DConditionalGenerator(nn.Module):
-    def __init__(self, input_nc = 3, latent_dim=4, depth = 4, ch=8, nframes=48, bn=True, trajgru = False, norm = nn.BatchNorm3d, loss_ae = False, noise = False):
-        super().__init__()
-        self.latent_dim = latent_dim
-        self.ch = ch
-        self.nframes = nframes -1 # first frame is just input frame
-        self.loss_ae = loss_ae
-        self.L_aux = 0
-        self.noise = noise
-        self.criterionAE = torch.nn.MSELoss()
-        self.depth = depth
-
-        CH = [8,8,8,4,2,1]
-        CH = CH[-depth-1:]
-
-        self.encoder = nn.ModuleList([
-            nn.Sequential(
-                SpectralNorm(nn.Conv2d(input_nc, ch, kernel_size=(3, 3), padding=1)),
-                GResBlock(ch*CH[-1], ch*CH[-2],n_class=1, downsample_factor = 2, bn = bn),
-                ),
-            *[GResBlock(ch*CH[-d-1], ch*CH[-d-2],n_class=1, downsample_factor = 2, bn = bn) for d in range(1,self.depth)]
-        ])
-        n_layers = 1
-        rnn = []
-        conv = []
-        for d in range(self.depth): 
-            c = CH[d]
-            rnn.append(ConvGRU(c * ch, hidden_sizes=[c * ch], kernel_sizes=3, n_layers=n_layers),)
-            conv.append(nn.Sequential(
-                GResBlock3D(ch*c, ch*c, n_class=1, upsample_factor=2, bn = bn, norm = norm),
-                GResBlock3D(ch*c, ch*CH[d+1], n_class=1, upsample_factor=1, bn = bn, norm = norm),
-            ))
-        self.rnn = nn.ModuleList(rnn)
-        self.conv = nn.ModuleList(conv)
-
-        self.colorize = SpectralNorm(nn.Conv2d(1 * ch, 3, kernel_size=(3, 3), padding=1))
-
-    def forward(self, x, noise = None):
-        x = x * 2 - 1
-        if len(x.shape) == 5: # B x T x 3 x W x H -> B x 3 x W x H (first frame)
-            x = x[:,0,...]
-        encoder_list = [x]
-        for layer in self.encoder: 
-            encoder_list.append(layer(encoder_list[-1]))
-        #y = self.encoder(x)
-        encoder_list = encoder_list[1:]
-        encoder_list.reverse()
-
-        if self.noise: 
-            if noise is None: 
-                noise = torch.empty(encoder_list[0].shape, device=x.device).normal_(mean=0, std=1)
-            y = noise.view(encoder_list[0].shape) # B x ch x ld x ld
-        else: #use encoded frame
-            y = encoder_list[0] # B x ch x ld x ld
-        
-        y = y.unsqueeze(2).expand(-1,-1, math.ceil(self.nframes / (2**(self.depth-1))), -1, -1)#B x ch x T//D x ld x ld
-
-        for depth, (rnn, conv) in enumerate(zip(self.rnn, self.conv)): 
-            unrolls = math.ceil(self.nframes / (2**(self.depth - depth)))
-        #    print(f"----Depth: {depth} Unrolls: {unrolls} ----")
-            frame_list = [encoder_list[depth]]
-            for i in range(unrolls): 
-                # print(y[:,:,i,:,:].shape, frame_list[i - 1].shape)
-                frame_list.append(rnn(y[:,:,i,:,:], frame_list[i - 1]))
-            
-            y=torch.stack(frame_list, dim = 2)
-            y = conv(y) #B x ch x T//D x ld x ld -> B x ch x T//(D-1) x ld*2 x ld*2 ->
-      #      print(y.shape)
-
-        y = y[:,:,:self.nframes,...]
-        y = F.relu(y)
-        B, C, T, W, H = y.size()
-        y = y.permute(0, 2, 1, 3, 4).contiguous().view(-1, C, W, H)
-
-        BT, C, W, H = y.size()
-        frame_0 = x[:, :3, ...].unsqueeze(1)
-        # if self.loss_ae:
-        #     frame_0 = 0
-        #     up = 0
-        #     for _, conv in enumerate(self.conv):
-        #         if isinstance(conv, GResBlock):
-        #             if conv.upsample_factor == 2 and up < len(encoder_list): 
-        #                 frame_0 += encoder_list[up]
-        #                 up += 1   
-        #                 #print(up, frame_0.shape, encoder_list[up].shape)
-        #             frame_0 = conv(frame_0)
-        #         # elif isinstance(conv, ConvGRU):
-        #         #     frame_0 = conv(frame_0)
-        #     frame_0 = torch.tanh(self.colorize(frame_0))
-        #     self.L_aux = self.criterionAE(frame_0, x[:, :3, ...])
-
-        #     frame_0 = frame_0.unsqueeze(1)
-
-        y = self.colorize(y)
-        y = y.view(-1, self.nframes,3, W, H) # B, T/S, C*S, W, H
-        y = torch.tanh(y)
-        y = torch.cat([frame_0, y],  dim = 1)
-        y = (y+1) / 2.0 #[-1,1] -> [0,1] for vis
-        return y
-
-class DvdStyleConditionalGenerator(nn.Module):
-    def __init__(self, input_nc = 3, latent_dim=2,n_grulayers = 1,style_dim = 256, ch=8, nframes=48, step_frames = 1, trajgru = False, noise = False):
-        super().__init__()
-        self.step_frames = step_frames
-        self.latent_dim = latent_dim
-        self.ch = ch
-        self.nframes = nframes -1 # first frame is just input frame
-        self.n_steps = math.ceil(self.nframes / step_frames)
-        self.noise = noise
-        self.criterionAE = torch.nn.MSELoss()
-        bn = False
-        self.n_grulayers = n_grulayers
-        gru_kernels = [3,5,3][:n_grulayers]
-        gru_hiddens = np.array([1,1,1])[:n_grulayers]
-
-        self.encoder = nn.ModuleList([
-            nn.Sequential(
-                nn.Conv2d(input_nc, ch, kernel_size=(3, 3), padding=1),
-                GResBlock(ch, ch*2,n_class=1, downsample_factor = 2, bn = bn, weight_norm=None),
-                ),
-        #    GResBlock(2*ch, 4*ch, n_class=1, downsample_factor = 2, bn = bn),
-            #GResBlock(2*ch, 4*ch, n_class=1, downsample_factor = 2, bn = bn),
-            GResBlock(ch*2, ch*4,n_class=1, downsample_factor = 2, bn = bn, weight_norm=None),
-            GResBlock(ch*4, ch*8,n_class=1, downsample_factor = 2, bn = bn, weight_norm=None),
-            GResBlock(ch*8, ch*8,n_class=1, downsample_factor = 2, bn = bn, weight_norm=None),
-        #    SpectralNorm(nn.Conv2d(8*ch, 8*ch, kernel_size=1)),
-        ])
-        e2s_dim = latent_dim // 4
-        self.encoder2style = nn.Sequential(
-                GResBlock(ch*8, ch*8,n_class=1, downsample_factor = 2, bn = bn, weight_norm=None),
-                GResBlock(ch*8, ch*4,n_class=1, downsample_factor = 2, bn = bn, weight_norm=None),
-                nn.Flatten(),
-                nn.Linear(ch*4*e2s_dim*e2s_dim, style_dim),
-                nn.Sigmoid(),
-            )
-        self.conv = nn.ModuleList([
-            ConvGRU(8 * ch, hidden_sizes=8 * ch * gru_hiddens, kernel_sizes=gru_kernels, n_layers=n_grulayers, trajgru=trajgru),
-            StyledConv(8 * ch, 8 * ch, 3, style_dim, upsample=True),
-            StyledConv(8 * ch, 8 * ch, 3, style_dim, upsample=False),
-            ConvGRU(8 * ch, hidden_sizes=8 * ch * gru_hiddens, kernel_sizes=gru_kernels, n_layers=n_grulayers, trajgru=trajgru),
-            StyledConv(8 * ch, 8 * ch, 3, style_dim, upsample=True),
-            StyledConv(8 * ch, 4 * ch, 3, style_dim, upsample=False),
-            ConvGRU(4 * ch, hidden_sizes=4 * ch * gru_hiddens, kernel_sizes=gru_kernels, n_layers=n_grulayers, trajgru=trajgru),
-            StyledConv(4 * ch, 4 * ch, 3, style_dim, upsample=True),
-            StyledConv(4 * ch, 2 * ch, 3, style_dim, upsample=False),
-            ConvGRU(2 * ch, hidden_sizes=2 * ch * gru_hiddens, kernel_sizes=gru_kernels, n_layers=n_grulayers, trajgru=trajgru),
-            StyledConv(2 * ch, 2 * ch, 3, style_dim, upsample=True),
-            StyledConv(2 * ch, 1 * ch, 3, style_dim, upsample=False),
-        ])
-        self.colorize = nn.Conv2d(1 * ch, 3, kernel_size=(3, 3), padding=1)
-        #decode 1 RNN step into multiple frames using 3x3 convs
-        if step_frames > 1:
-            self.decoder = nn.Sequential(
-                nn.Conv3d(1*ch, 1*ch, kernel_size=(3, 3, 3), padding=1),
-                nn.ReLU(),
-                nn.Conv3d(1*ch, 1*ch, kernel_size=(3,3,3), padding=1),
-            )
-
-    def forward(self, x, noise = None):
-        x = x * 2 - 1
-        if len(x.shape) == 5: # B x T x 3 x W x H -> B x 3 x W x H (first frame)
-            x = x[:,0,...]
-
-        encoder_list = [x]
-        for layer in self.encoder: 
-            encoder_list.append(layer(encoder_list[-1]))
-        #y = self.encoder(x)
-        encoder_list = encoder_list[1:]
-        encoder_list.reverse()
-
-        if self.noise: 
-            if noise is None: 
-                noise = torch.empty(encoder_list[0].shape, device=x.device).normal_(mean=0, std=1)
-            y = noise.view(encoder_list[0].shape) # B x ch x ld x ld
-        else: #use encoded frame
-            y = encoder_list[0] # B x ch x ld x ld
-        
-        style = self.encoder2style(y)
-        style = style.unsqueeze(1).expand(-1, self.nframes, -1).contiguous().view(x.size(0)*self.nframes, -1) # BT x style
-
-        depth = 0
-  
-        for k, conv in enumerate(self.conv):
-            if isinstance(conv, ConvGRU):
-
-                if k > 0:
-                    _, C, W, H = y.size()
-                    y = y.view(-1, self.n_steps, C, W, H).contiguous()
-
-                frame_list = []
-                for i in range(self.n_steps):
-                    if k == 0:
-                        if i == 0:
-                            frame_list.append(conv(y, [encoder_list[depth]]*self.n_grulayers))  # T x [B x ch x ld x ld]
-                        else:
-                            frame_list.append(conv(y, frame_list[i - 1]))
-                    else:
-                        if i == 0:
-                            frame_list.append(conv(y[:,0,:,:,:].squeeze(1),[encoder_list[depth]]*self.n_grulayers))  # T x [B x ch x ld x ld]
-                        else:
-                            frame_list.append(conv(y[:,i,:,:,:].squeeze(1), frame_list[i - 1]))
-                frame_hidden_list = []
-                for i in frame_list:
-                    frame_hidden_list.append(i[-1].unsqueeze(0))
-                y = torch.cat(frame_hidden_list, dim=0) # T x B x ch x ld x ld
-
-                y = y.permute(1, 0, 2, 3, 4).contiguous() # B x T x ch x ld x ld
-                B, T, C, W, H = y.size()
-                y = y.view(-1, C, W, H)
-                depth += 1
-
-            elif isinstance(conv, StyledConv):
-             #   print(y.shape, style.shape, conv)
-                y = conv(y, style) # BT, C, W, H
-
-        y = F.relu(y)
-        BT, C, W, H = y.size()
-
-        if self.step_frames > 1:
-            y = y.view(-1, self.n_steps, C, W, H) # B, T/S, C, W, H
-            y = y.permute(0, 2, 1, 3, 4) # B, C, T/S, W, H
-            ysp = []
-            for y_i in torch.split(y, split_size_or_sections = 1, dim = 2):
-                y_i = F.interpolate(y_i, size = (self.step_frames,W,H))
-                y_i = self.decoder(y_i)
-                ysp.append(y_i)
-            y = torch.cat(ysp, dim = 2)# B, C, T, W, H
-            y = y.permute(0, 2, 1, 3, 4) [:,:self.nframes,...].contiguous() # B, T, C, W, H
-            _,_, C, W, H = y.size()
-            y = y.view(-1, C, W, H)
-
-        frame_0 = x[:, :3, ...].unsqueeze(1)
-        # if self.loss_ae:
-        #     frame_0 = 0
-        #     up = 0
-        #     for _, conv in enumerate(self.conv):
-        #         if isinstance(conv, GResBlock):
-        #             if conv.upsample_factor == 2 and up < len(encoder_list): 
-        #                 frame_0 += encoder_list[up]
-        #                 up += 1   
-        #                 #print(up, frame_0.shape, encoder_list[up].shape)
-        #             frame_0 = conv(frame_0)
-        #         # elif isinstance(conv, ConvGRU):
-        #         #     frame_0 = conv(frame_0)
-        #     frame_0 = torch.tanh(self.colorize(frame_0))
-        #     self.L_aux = self.criterionAE(frame_0, x[:, :3, ...])
-
-        #     frame_0 = frame_0.unsqueeze(1)
 
         y = self.colorize(y)
         y = y.view(-1, self.nframes,3, W, H) # B, T/S, C*S, W, H
@@ -642,20 +381,8 @@ class DvdGanModel(BaseModel):
         print(f"FP: depth: {fp_depth}, latent: {latent_dim}, step: {opt.up_blocks_per_rnn}, rnn at: {[2**i for i in range(opt.start_fp, log_res, opt.up_blocks_per_rnn)]}")
         if opt.generator == "dvdgan":
             netG = DvdConditionalGenerator(nframes = self.nframes,input_nc = input_nc,n_grulayers = opt.gru_layers,  ch = opt.ch_g, latent_dim = latent_dim, step_frames = 1, bn = not opt.no_bn, noise=not opt.no_noise, loss_ae=self.isTrain and self.opt.lambda_AUX>0)
-            #netG = DvdConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = 16, latent_dim = 8, step_frames = 1, bn = True, norm = nn.InstanceNorm2d,)
-
-            #netG = DVDGan(self.nframes,input_nc ,ngf = 32, latent_nc=120,fp_levels = 3, res = self.opt.resolution, )
         elif opt.generator == "trajgru": 
             netG = DvdConditionalGenerator(nframes = self.nframes,input_nc = input_nc,n_grulayers = opt.gru_layers, ch = opt.ch_g, latent_dim = latent_dim, step_frames = 1, bn = not opt.no_bn, noise=not opt.no_noise, loss_ae=self.isTrain and self.opt.lambda_AUX>0, trajgru=True)
-            # netG = DvdConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = 16, latent_dim = 8, step_frames = 1, bn = True, norm = nn.InstanceNorm2d, trajgru=True)
-        elif opt.generator == "style": 
-            netG = DvdStyleConditionalGenerator(nframes = self.nframes,input_nc = input_nc,n_grulayers = opt.gru_layers, ch = opt.ch_g, latent_dim = latent_dim, step_frames = 1, noise = opt.style_noise)
-        elif opt.generator == "styletraj": 
-            netG = DvdStyleConditionalGenerator(nframes = self.nframes,input_nc = input_nc,n_grulayers = opt.gru_layers, ch = opt.ch_g, latent_dim = latent_dim, step_frames = 1, noise = opt.style_noise, trajgru=True)
-        elif opt.generator == "dvdgansimple":
-            netG = GRUEncoderDecoderNet(self.nframes,input_nc ,ngf = opt.ch_g, hidden_dims=128, enc2hidden = True)
-        elif opt.generator == "dvdgan3d":
-            netG = Dvd3DConditionalGenerator(nframes = self.nframes,input_nc = input_nc, ch = opt.ch_g, latent_dim = latent_dim, bn = not opt.no_bn, noise=not opt.no_noise, loss_ae=self.isTrain and self.opt.lambda_AUX>0)
         elif opt.generator == "style2": 
             netG = DvdStyle2(nframes = self.nframes, depth = fp_depth, up_blocks_per_rnn=opt.up_blocks_per_rnn, input_nc = input_nc,n_grulayers = opt.gru_layers, ch = opt.ch_g, latent_dim = latent_dim, step_frames = 1)
         elif opt.generator == "style2traj": 
@@ -685,12 +412,9 @@ class DvdGanModel(BaseModel):
             self.criterionGAN = networks.GANLoss(False).to(self.device)
             self.criterionWGAN = networks.WGANLoss(adv_loss = 'wgan-gp').to(self.device)
             self.criterionL1 = torch.nn.L1Loss()
-            # self.criterionL1Smooth = torch.nn.SmoothL1Loss()
-            # self.criterionL2 = torch.nn.MSELoss()
 
             # initialize optimizers
             self.optimizers = []
-           # self.optimizer_G = torch.optim.SGD(self.netG.parameters(), opt.lr)
             self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizers.append(self.optimizer_G)
 
@@ -731,17 +455,7 @@ class DvdGanModel(BaseModel):
         nFrames = frame_length if frame_length>0 else self.nframes
         if hasattr(self.netG, "nFrames"):
             self.netG.nFrames = nFrames
-        # grad_frames = []
-        # if train:
-        #     if self.opt.fast_sample_len > 0: 
-        #         s = randint(0, self.nframes - self.opt.fast_sample_len)
-        #         grad_frames = range(s, s+ self.opt.fast_sample_len)
-        #     else: 
-        #         grad_frames = range(nFrames)
-        # self.grad_frames = grad_frames
-        # if self.opt.generator.startswith("style2"): 
-        #     self.predicted_video = self.netG(self.input, grad_frames = grad_frames)
-        # else: 
+
         self.predicted_video = self.netG(self.input) 
         if self.opt.masked_update: 
             B,T,C,W,H = self.predicted_video.size()

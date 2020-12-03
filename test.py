@@ -35,7 +35,7 @@ if __name__ == '__main__':
     opt.serial_batches = True  # no shuffle
     opt.no_augmentation = True    # no flip
     opt.display_id = -1   # no visdom display
-    opt.num_threads = 0
+    opt.num_threads = 8
     data_loader = CreateDataLoader(opt)
     dataset = data_loader.load_data()
     dataset_size = len(data_loader)
@@ -46,7 +46,6 @@ if __name__ == '__main__':
     model = create_model(opt)
     print('>>> setup model <<<')
     model.setup(opt)
-    #save_tensor_image(model.texture.data[0:1,0:3,:,:], 'load_test1.png')
 
     # create a website    
     print('>>> create a website <<<')
@@ -54,7 +53,7 @@ if __name__ == '__main__':
     webpage = html.HTML(web_dir, 'Experiment = %s, Phase = %s, Epoch = %s' % (opt.name, opt.phase, opt.epoch))
 
     sum_time = 0
-    total_runs = dataset_size
+    total_runs = dataset_size * opt.gen_per_sample
     warm_up = 50
     block = 0
     vid_ctr = 0 
@@ -68,32 +67,28 @@ if __name__ == '__main__':
         #data = dataset[i]
         #if i >= opt.num_test:
         #    break
-        model.set_input(data)
+        for sx in range(opt.gen_per_sample): 
+            model.set_input(data)
 
-        torch.cuda.synchronize()
-        a = time.perf_counter()
-        
-        model.test() #forward pass no grad
+            torch.cuda.synchronize()
+            a = time.perf_counter()
+            
+            model.test() #forward pass no grad
 
+            b = time.perf_counter()
 
-        b = time.perf_counter()
+            if i > warm_up:  # give torch some time to warm up
+                sum_time += ((b-a) * 1000)
 
-        if i > warm_up:  # give torch some time to warm up
-            sum_time += ((b-a) * 1000)
+            vids = model.predicted_video.detach().cpu()
+            out_buffer.append(*torch.split(vids, 1, dim=0))
 
-        vids = model.predicted_video.detach().cpu()
-        out_buffer.append(*torch.split(vids, 1, dim=0))
-
-       #visuals = model.get_current_visuals()
-       # img_path = model.get_image_paths()
         if i % 10 == 0:
             print(opt.name + ":")
             print('processing (%04d)-th sample...' % (i))
         
-      #  save_images(webpage, visuals, img_path, aspect_ratio=opt.aspect_ratio, width=opt.display_winsize)
-        if len(out_buffer) >= opt.grid**2: 
+        while len(out_buffer) >= opt.grid**2: 
             
-
             grid = out_buffer[:opt.grid**2]
             
             step = 1

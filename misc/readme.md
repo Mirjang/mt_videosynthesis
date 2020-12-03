@@ -1,0 +1,1 @@
+This directory just contains a wild mix of simple utility scripts, that were mostly written as needed and often only used a few times. 
