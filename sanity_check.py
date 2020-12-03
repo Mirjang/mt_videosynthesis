@@ -5,10 +5,6 @@ from data import CreateDataLoader
 from models import create_model
 from util.visualizer import Visualizer
 
-if __name__ == '__main__':
-    opt = TrainOptions().parse()
-    sanity_check(opt)
-
 def sanity_check(opt):
     abort_file = "/mnt/raid/patrickradner/kill" + str(opt.gpu_ids[0]) if len(opt.gpu_ids)>0 else "cpu"
 
@@ -108,3 +104,9 @@ def sanity_check(opt):
 
 
     print("SANITY CHECK DONE")
+
+
+
+if __name__ == '__main__':
+    opt = TrainOptions().parse()
+    sanity_check(opt)

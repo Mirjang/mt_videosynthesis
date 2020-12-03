@@ -219,6 +219,7 @@ class DvdStyle2(nn.Module):
 
         self.colorize = sg2model.ToRGB(1*ch, style_dim, upsample=False)
         #self.colorize = nn.Conv2d(1 * ch, 3, kernel_size=(3, 3), padding=1)
+
         #decode 1 RNN step into multiple frames using 3x3 convs
         if step_frames > 1:
             self.decoder = nn.Sequential(
@@ -227,9 +228,8 @@ class DvdStyle2(nn.Module):
                 nn.Conv3d(1*ch, 1*ch, kernel_size=(3,3,3), padding=1),
             )
 
-    def forward(self, x, noise = None, noise_scale = None):
-        if not noise_scale: 
-            noise_scale = torch.empty(x.size(0), device = x.device).uniform_() * 5
+    def forward(self, x, noise = None):
+        
         x = x * 2 - 1
         if len(x.shape) == 5: # B x T x 3 x W x H -> B x 3 x W x H (first frame)
             x = x[:,0,...]
@@ -243,7 +243,6 @@ class DvdStyle2(nn.Module):
         style = self.encoder2style(encoder_list[0])
         style = style.unsqueeze(1).expand(-1, self.nframes, -1).contiguous().view(x.size(0)*self.nframes, -1) # BT x style
         y = self.input(encoder_list[0]) #B x C x W x H
-     #   y = encoder_list[0] #B x C x W x H
 
         y = y.unsqueeze(1).expand(-1, self.nframes, -1, -1, -1) #B x T x C x W x H
 
@@ -260,22 +259,15 @@ class DvdStyle2(nn.Module):
                 y = y.permute(1, 0, 2, 3, 4).contiguous() # B x T x ch x ld x ld
           
             *_,T, C, W, H = y.size()
-            # if depth < len(self.rnn): 
-            #     noise = [torch.empty((y.size(0), 1, self.noise_dim, W, H), device=x.device).normal_()]
-                
-            #     for i in range(T): 
-            #         t = i/T * np.pi
-            #         noise.append(torch.sin(t * noise[0] * noise_scale))
-            #     noise = torch.cat(noise, dim = 1)
-            # else: 
-            #     noise = torch.zero((y.size(0), 1, W, H))
 
             y = y.view(-1, C, W, H)
             
-            
             for conv in conv_list: 
                # y = conv(y, style, noise = noise.view(-1,1,W,H)) # BT, C, W, H
-                y = conv(y, style) # BT, C, W, H
+                if noise: 
+                    y = conv(y, style, noise[depth])
+                else: 
+                    y = conv(y, style) # BT, C, W, H
 
             _, C, W, H = y.size()
             y = y.view(-1, self.nframes, C, W, H).contiguous()
@@ -297,22 +289,6 @@ class DvdStyle2(nn.Module):
             y = y.view(-1, C, W, H)
 
         frame_0 = x[:, :3, ...].unsqueeze(1)
-        # if self.loss_ae:
-        #     frame_0 = 0
-        #     up = 0
-        #     for _, conv in enumerate(self.conv):
-        #         if isinstance(conv, GResBlock):
-        #             if conv.upsample_factor == 2 and up < len(encoder_list): 
-        #                 frame_0 += encoder_list[up]
-        #                 up += 1   
-        #                 #print(up, frame_0.shape, encoder_list[up].shape)
-        #             frame_0 = conv(frame_0)
-        #         # elif isinstance(conv, ConvGRU):
-        #         #     frame_0 = conv(frame_0)
-        #     frame_0 = torch.tanh(self.colorize(frame_0))
-        #     self.L_aux = self.criterionAE(frame_0, x[:, :3, ...])
-
-        #     frame_0 = frame_0.unsqueeze(1)
 
         y = self.colorize(y, style)
         y = y.view(-1, self.nframes,3, W, H) # B, T/S, C*S, W, H
@@ -439,14 +415,14 @@ class DvdGanModel(BaseModel):
         self.loss_Ds_GP = 0
         self.loss_Dt_GP = 0
 
-    def set_input(self, input):
+    def set_input(self, input, noise = None):
         self.target_video = input['VIDEO'].to(self.device).permute(0,1,4,2,3).float() / 255.0 #normalize to [0,1] for vis and stuff
         self.input = self.target_video[:,0,...]#first frame
+        self.noise = noise.to(self.device) if noise else None
         if self.opt.use_segmentation: 
             self.input = torch.cat([self.input, input["SEGMENTATION"].to(self.device)], dim = 1)
         if self.opt.masked_update: 
             self.mask = input["SEGMENTATION"].to(self.device).expand(-1, 3, -1, -1)
-       # self.noise_input = torch.empty((self.target_video.shape[0], self.in_dim)).normal_(mean=0, std=1)
 
         _, T, *_ = self.target_video.shape
         self.target_video = self.target_video[:, :min(T,self.nframes),...]
@@ -456,7 +432,7 @@ class DvdGanModel(BaseModel):
         if hasattr(self.netG, "nFrames"):
             self.netG.nFrames = nFrames
 
-        self.predicted_video = self.netG(self.input) 
+        self.predicted_video = self.netG(self.input, noise = self.noise) 
         if self.opt.masked_update: 
             B,T,C,W,H = self.predicted_video.size()
             self.predicted_video = torch.where(self.mask.byte().unsqueeze(1).expand(B,T,C,W,H),self.predicted_video, self.target_video[:,:1,...].expand(B,T,C,W,H))
@@ -471,15 +447,8 @@ class DvdGanModel(BaseModel):
         for i in range(self.num_display_frames//2):
             ith_last = self.num_display_frames//2 -i +1
             setattr(self,f"frame_{i + self.num_display_frames//2}", self.predicted_video[:,-ith_last,...].detach().cpu() )
-       
-        # probs = self.input[:,3:,...].detach().cpu()
-        # labelmap = torch.argmax(probs, dim=1, keepdim=True).expand(-1,3,-1,-1)
-        # labels = torch.unique(labelmap)
-        # print(f"labels: {labels}")
 
-        # setattr(self,f"frame_{1}", labelmap.float()/182)
-
-        #video = video * 256
+        #video = video * 255
         #return video.permute(0,1,3,4,2)
 
     def epoch_frame_length(self, epoch):

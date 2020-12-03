@@ -13,7 +13,6 @@ class TestOptions(BaseOptions):
         parser.add_argument('--num_test', type=int, default=50, help='how many test images to run')
         parser.add_argument('--grid', type=int, default=5, help='save vids as NxN grids')
         parser.add_argument('--gen_per_sample', type=int, default=1, help='generate n vids per dataset sample')
-        parser.add_argument('--validation_set', type=str, default="test", help='name of the validation set (default: test, bc. i didnt define a validation set for most datasets)')
 
         parser.set_defaults(model='test')
         # To avoid cropping, the loadSize should be the same as fineSize

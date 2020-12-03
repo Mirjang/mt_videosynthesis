@@ -68,6 +68,7 @@ if __name__ == '__main__':
         #if i >= opt.num_test:
         #    break
         for sx in range(opt.gen_per_sample): 
+
             model.set_input(data)
 
             torch.cuda.synchronize()

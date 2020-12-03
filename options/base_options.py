@@ -76,8 +76,8 @@ class BaseOptions():
 
         parser.add_argument('--up_blocks_per_rnn', type=int, default=1, help='go up K resolutions before rnn')
 
-        parser.add_argument('--style_noise', action='store_true', help='latent input = noise if noise else encoder output')
         parser.add_argument('--masked_update', action='store_true', help='only generate new content in masked areas')
+        parser.add_argument('--validation_set', type=str, default="test", help='name of the validation set (default: test, bc. i didnt define a validation set for most datasets)')
 
 
         self.initialized = True
