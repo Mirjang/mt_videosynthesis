@@ -55,6 +55,8 @@ if __name__ == '__main__':
     visualizer = Visualizer(opt)
     total_steps = 0
     for epoch in range(opt.epoch_count, opt.niter + opt.niter_decay + 1):
+        torch.cuda.empty_cache()
+
         verbose = True
         #validation
         if (opt.validation_freq>0 and epoch % opt.validation_freq == 0):# or epoch == 1: # do val first so we dont get nasty crashes after hours of training
@@ -83,13 +85,16 @@ if __name__ == '__main__':
                 save_result = False
                 visualizer.display_current_results(visuals, epoch, save_result)
 
+            torch.cuda.empty_cache()
         # training loop
 
         epoch_start_time = time.time()
         iter_data_time = time.time()
         epoch_iter = 0
         losses={}
-        for i, data in enumerate(dataset):
+        i = 0
+        for data in dataset:
+            i+=1
             if os.path.exists(abort_file): 
                 exit("Abort using file: " + abort_file)
             iter_start_time = time.time()
