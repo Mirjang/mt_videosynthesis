@@ -31,8 +31,8 @@ import six
 import tensorflow.compat.v1 as tf
 
 # Set CPU as available physical device
-my_devices = tf.config.experimental.list_physical_devices(device_type='CPU')
-tf.config.experimental.set_visible_devices(devices= my_devices, device_type='CPU')
+my_devices = tf.config.experimental.list_physical_devices(device_type='GPU')
+tf.config.experimental.set_visible_devices(devices= my_devices, device_type='GPU')
 
 tf.logging.set_verbosity(tf.logging.ERROR)
 tf.get_logger().setLevel('ERROR')
@@ -161,7 +161,7 @@ def fvd(real_np, fake_np):
 
 #CUDA_VISIBLE_DEVICES="" python misc/frechet_video_distance_tf.py /mnt/raid/patrickradner/datasets/yt/river_relaxing/ val_info.csv
 
-def load_vids(dir, resolution = 224,n_frames = 25, file_type ="*.mp4", B = 200): 
+def load_vids(dir, resolution = 224,n_frames = 24, file_type ="*.mp4", B = 200): 
   np_tensor = None
   it = 0
   for file in glob.glob(os.path.join(dir, file_type)): 
@@ -169,7 +169,7 @@ def load_vids(dir, resolution = 224,n_frames = 25, file_type ="*.mp4", B = 200):
   
     frames, _, info = torchvision.io.read_video(file, pts_unit="sec")
     frames = F.interpolate(frames.permute(0,3,1,2).float(), size = (resolution+1, resolution+1), mode = "bilinear", align_corners=False)
-    frames = frames[:n_frames,...].permute(0,2,3,1).unsqueeze(0)
+    frames = frames[1:n_frames+1,...].permute(0,2,3,1).unsqueeze(0)
     #print(frames.min(), frames.max())
     if frames.size(1) < n_frames: 
         continue
@@ -177,6 +177,7 @@ def load_vids(dir, resolution = 224,n_frames = 25, file_type ="*.mp4", B = 200):
         np_tensor = frames.numpy()
     else: 
         np_tensor = np.concatenate((np_tensor, frames.numpy()), axis = 0)  
+   # print(np_tensor.shape)
 
     if it % 50 == 0: 
         print(f"loading file {file}")
@@ -199,12 +200,16 @@ if __name__ == "__main__":
   dir1 = sys.argv[1]
   dir2 = sys.argv[2]
   B = 256
-  # load b first as its more likely to be bad user input (usually called from scripts where a is fixed)
+  B = 64
+  # load b first as its more likely to be bad user input
+
   b = load_vids(dir2, B = B)
   print(f"done loading B {b.shape}")
 
+
   a = load_vids(dir1, B = B)
   print(f"done loading A {a.shape}")
+
 
 
   print("FVD is: %.2f." % fvd(a,b))

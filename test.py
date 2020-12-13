@@ -46,7 +46,6 @@ if __name__ == '__main__':
     model = create_model(opt)
     print('>>> setup model <<<')
     model.setup(opt)
-
     # create a website    
     print('>>> create a website <<<')
     web_dir = os.path.join(opt.results_dir, opt.name, '%s_%s' % (opt.phase, opt.epoch))
@@ -107,13 +106,11 @@ if __name__ == '__main__':
                 b = a + opt.grid
                 row = torch.cat(grid[a:b], dim = -2)
                 rows.append(row)
-
             out = torch.cat(rows, dim = -1).squeeze(0).permute(0,2,3,1) * 255 # T,W,H,C
             torchvision.io.write_video(os.path.join(web_dir, f"fake_block{block}.mp4"), out, opt.fps / 2)
             block += 1
 
     print('mean eval time: ', (sum_time / (total_runs - warm_up)))
-    # save the website
-    os.system(f"zip -q -r {os.path.join(web_dir, '../%s_%s_%s.zip' % (opt.name,opt.phase, opt.epoch))} {web_dir}")    
+    #os.system(f"zip -q -r {os.path.join(web_dir, '../%s_%s_%s.zip' % (opt.name,opt.phase, opt.epoch))} {web_dir}")    
     print("DONE: " + opt.name)
 

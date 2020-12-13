@@ -11,7 +11,7 @@ class TestOptions(BaseOptions):
         #  Dropout and Batchnorm has different behavioir during training and test.
         parser.add_argument('--eval', action='store_true', help='use eval mode during test time.')
         parser.add_argument('--num_test', type=int, default=50, help='how many test images to run')
-        parser.add_argument('--grid', type=int, default=5, help='save vids as NxN grids')
+        parser.add_argument('--grid', type=int, default=1, help='save vids as NxN grids')
         parser.add_argument('--gen_per_sample', type=int, default=1, help='generate n vids per dataset sample')
 
         parser.set_defaults(model='test')
