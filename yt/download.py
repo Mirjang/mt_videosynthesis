@@ -10,7 +10,7 @@ from youtube_api import YouTubeDataAPI
 import pandas as pd
 import glob
 
-api = YouTubeDataAPI("AIzaSyC59eKDKiR7wq9Lu2gOGWfk0_Gupn40a8s")
+api = YouTubeDataAPI("YOUR KEY HERE")
 
 resolutions = ['1080p', '720p', '480p', '360p', '240p', '144p']
 
