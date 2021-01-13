@@ -60,7 +60,7 @@ Flask==1.1.2
 fsspec==0.7.4
 future==0.18.2
 gast==0.3.3
-gdown==3.11.1
+gdown==3.12.2
 gevent @ file:///tmp/build/80754af9/gevent_1593009958030/work
 glob2==0.7
 gmpy2==2.0.8
@@ -110,6 +110,7 @@ lazy-object-proxy==1.4.3
 libarchive-c==2.9
 llvmlite==0.33.0+1.g022ab0f
 locket==0.2.0
+lpips==0.1.3
 lxml @ file:///tmp/build/80754af9/lxml_1594824402764/work
 Markdown==3.2.2
 MarkupSafe @ file:///tmp/build/80754af9/markupsafe_1594371495811/work
@@ -184,6 +185,7 @@ pytest==5.4.3
 python-dateutil==2.8.1
 python-jsonrpc-server @ file:///tmp/build/80754af9/python-jsonrpc-server_1594397536060/work
 python-language-server @ file:///tmp/build/80754af9/python-language-server_1594161909876/work
+pytorch-fid==0.1.1
 pytubeX==0.1.1
 pytz==2020.1
 PyWavelets==1.1.1

@@ -1,1 +1,5 @@
-# landscapes
+# Master's Thesis: Video Synthesis from a Single Image
+Master's Thesis on Video Synthesis from a Single Image the core model is based on the [DVD-GAN](https://arxiv.org/abs/1907.06571) architecture and ity [PyTorch implementation](https://github.com/Harrypotterrrr/DVD-GAN). The basic building blocks are replaced by StyleBlocks which dont use BatchNorm, allowing for easier training on smaller ressources. 
+
+## Code
+The code uses the [Pix2Pix framework](https://github.com/phillipi/pix2pix) and PyTorch implementations of DVD-GAN (https://github.com/Harrypotterrrr/DVD-GAN) and StyleGan2 (https://github.com/rosinality/stylegan2-pytorch) as a basis. Example scripts for calling for train.py and test.py can be found in the setups directory. The actual model is implemented in models/dvdgan_model.py. The misc directory contains a bunch of evaluation and general housekeeping scripts. The yt directory contains the code for creating a dataset from youtube videos. It relies on pytube and might break from time to time. 
