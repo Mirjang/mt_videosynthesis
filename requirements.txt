@@ -257,7 +257,7 @@ typing-extensions @ file:///tmp/build/80754af9/typing_extensions_1592847887441/w
 ujson==1.35
 unicodecsv==0.14.1
 uritemplate==3.0.1
-urllib3==1.25.9
+urllib3==1.26.5
 visdom==0.1.8.9
 watchdog @ file:///tmp/build/80754af9/watchdog_1593447306189/work
 wcwidth @ file:///tmp/build/80754af9/wcwidth_1593447189090/work
